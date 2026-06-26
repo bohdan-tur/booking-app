@@ -4,7 +4,7 @@ from app.dependencies import DbSession
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, or_
-
+from app.core.config import settings
 from app.core.security import verify_refresh_token, create_refresh_token, create_access_token, verify_password
 from app.models.user_model import Users
 from app.schemas.token_schema import RefreshToken_Schema
@@ -24,16 +24,22 @@ async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
     )
 
     email = verify_refresh_token(token_data.refresh_token)
+
+    if email is None:
+        raise credentials_exception
+
     query_result = await db.execute(select(Users).filter(Users.email == email))
     user = query_result.scalars().first()
 
     if user is None:
         raise credentials_exception
 
-    new_access_token = create_access_token({"sub": user.email}, timedelta(minutes=15))
+    new_access_token = create_access_token({"sub": user.email}, timedelta(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    new_refresh_token = create_refresh_token({"sub": user.email})
 
     return {
         "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer"
     }
 
