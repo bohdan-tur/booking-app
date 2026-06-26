@@ -11,55 +11,40 @@ REFRESH_SECRET_KEY = settings.REFRESH_SECRET_KEY
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-
 def hash_password(password: str) -> str:
-
     return pwd_context.hash(password)
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def _create_jwt_token(data: dict, secret: str, expires_delta: timedelta) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expires = datetime.now(UTC) + expires_delta
-    else:
-        expires = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-
+    expires = datetime.now(UTC) + expires_delta
     to_encode.update({"exp": expires})
-    encode_jwt = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
-    return encode_jwt
+    return jwt.encode(to_encode, secret, ALGORITHM)
 
+def _verify_jwt_token(token: str, secret: str) -> str | None:
+    try:
+        payload = jwt.decode(
+            token,
+            secret,
+            algorithms=[ALGORITHM],
+            options={"require": ["exp", "sub"]}
+        )
+        return payload.get("sub")
+    except jwt.InvalidTokenError:
+        return None
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    delta = expires_delta if expires_delta else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return _create_jwt_token(data, SECRET_KEY, delta)
+
+def create_refresh_token(data: dict) -> str:
+    delta = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    return _create_jwt_token(data, REFRESH_SECRET_KEY, delta)
 
 def verify_access_token(token: str) -> str | None:
-    try:
-
-        payload = jwt.decode(token,
-                             SECRET_KEY,
-                             algorithms=[ALGORITHM],
-                             options={"require": ["exp", "sub"]})
-        return payload.get("sub")
-    except jwt.InvalidTokenError:
-        return None
-
-
-def create_refresh_token(data: dict):
-    encoded_data = data.copy()
-    expires_time = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    encoded_data.update({"exp": expires_time})
-
-    encoded_jwt = jwt.encode(encoded_data, REFRESH_SECRET_KEY, ALGORITHM)
-    return encoded_jwt
-
+    return _verify_jwt_token(token, SECRET_KEY)
 
 def verify_refresh_token(token: str) -> str | None:
-    try:
-        payload = jwt.decode(token,
-                             REFRESH_SECRET_KEY,
-                             algorithms=[ALGORITHM],
-                             options={"require": ["exp", "sub"]})
-        return payload.get("sub")
-    except jwt.InvalidTokenError:
-        return None
+    return _verify_jwt_token(token, REFRESH_SECRET_KEY)

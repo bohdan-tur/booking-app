@@ -11,11 +11,9 @@ from app.schemas.token_schema import RefreshToken_Schema
 
 router = APIRouter(tags=['Auth'])
 
-
 @router.post(
-    "/", 
+    "/",
     status_code=status.HTTP_200_OK)
-
 async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -23,19 +21,19 @@ async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
         headers={"WWW-Authenticate": "Bearer"}
     )
 
-    email = verify_refresh_token(token_data.refresh_token)
+    user_id_str = verify_refresh_token(token_data.refresh_token)
 
-    if email is None:
+    if not user_id_str:
         raise credentials_exception
 
-    query_result = await db.execute(select(Users).filter(Users.email == email))
+    query_result = await db.execute(select(Users).filter(Users.id == int(user_id_str)))
     user = query_result.scalars().first()
 
     if user is None:
         raise credentials_exception
 
-    new_access_token = create_access_token({"sub": user.email}, timedelta(settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    new_refresh_token = create_refresh_token({"sub": user.email})
+    new_access_token = create_access_token({"sub": str(user.id)}, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    new_refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return {
         "access_token": new_access_token,
@@ -43,9 +41,8 @@ async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
         "token_type": "bearer"
     }
 
-
 @router.post(
-    '/login', 
+    '/login',
     status_code=status.HTTP_200_OK
 )
 async def user_login(
@@ -62,20 +59,20 @@ async def user_login(
 
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
     if not verify_password(user_credentials.password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    access_token = create_access_token({"sub": user.email}, timedelta(minutes=15))
-    refresh_token = create_refresh_token({"sub": user.email})
+    access_token = create_access_token({"sub": str(user.id)}, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return {
         "access_token": access_token,
