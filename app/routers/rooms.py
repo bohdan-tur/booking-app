@@ -42,30 +42,6 @@ async def get_all_not_booked_rooms(db: db_dependency):
     return res
 
 
-@router.get("/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
-async def get_all_booked_rooms(db: db_dependency):
-    now = datetime.now(UTC).replace(tzinfo=None)
-    occupied_ids = select(Bookings.room_id).filter(
-        and_(Bookings.start_time <= now, Bookings.end_time >= now)
-    )
-    query = select(Rooms).filter(Rooms.id.in_(occupied_ids))
-    rooms = await db.execute(query)
-    res = rooms.scalars().all()
-
-    if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't booked rooms right now")
-    return res
-
-
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=RoomOut, dependencies=[Depends(allow_admin)])
-async def add_room(room_data: RoomCreate, db: db_dependency):
-    new_room = Rooms(**room_data.model_dump())
-    db.add(new_room)
-    await db.commit()
-    await db.refresh(new_room)
-    return new_room
-
-
 @router.get("/{room_id}/available", status_code=status.HTTP_200_OK)
 async def get_not_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
     now = datetime.now(UTC).replace(tzinfo=None)
@@ -100,6 +76,30 @@ async def get_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt=0)]
     if not res:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room is not booked")
     return res
+
+
+@router.get("/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
+async def get_all_booked_rooms(db: db_dependency):
+    now = datetime.now(UTC).replace(tzinfo=None)
+    occupied_ids = select(Bookings.room_id).filter(
+        and_(Bookings.start_time <= now, Bookings.end_time >= now)
+    )
+    query = select(Rooms).filter(Rooms.id.in_(occupied_ids))
+    rooms = await db.execute(query)
+    res = rooms.scalars().all()
+
+    if not res:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't booked rooms right now")
+    return res
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=RoomOut, dependencies=[Depends(allow_admin)])
+async def add_room(room_data: RoomCreate, db: db_dependency):
+    new_room = Rooms(**room_data.model_dump())
+    db.add(new_room)
+    await db.commit()
+    await db.refresh(new_room)
+    return new_room
 
 
 @router.put('/{room_id}', status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
