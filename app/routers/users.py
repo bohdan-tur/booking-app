@@ -4,11 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update, delete
 
 from app.dependencies import DbSession
-from app.core.security import hash_password
 from app.dependencies import allow_admin_and_manager, allow_admin, get_current_user
 from app.models.role_model import Role
 from app.models.user_model import Users
-from app.schemas.user_schema import UserOut, UserCreate
 
 router = APIRouter(tags=["Users"])
 
@@ -35,26 +33,6 @@ async def get_all_users(db: DbSession):
     users = query_result.scalars().all()
     return users
 
-
-@router.post("/new", status_code=status.HTTP_201_CREATED, response_model=UserOut)
-async def add_user(user_data: UserCreate, db: DbSession):
-    query_result = await db.execute(select(Users).filter(Users.email == user_data.email))
-
-    if query_result.scalars().first():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User with this email already exists")
-
-    hashed_pwd = hash_password(user_data.password)
-    new_user = Users(
-        username=user_data.username,
-        password_hash=hashed_pwd,
-        email=user_data.email,
-        is_active=True
-    )
-
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-    return new_user
 
 
 @router.get("/{user_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
