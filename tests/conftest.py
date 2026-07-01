@@ -76,12 +76,13 @@ async def client():
 
 @pytest_asyncio.fixture
 async def create_test_user(db_session: AsyncSession):
-    async def _create_user():
+    async def _create_user(role="admin"):
         unique_suffix = uuid.uuid4().hex[:8]
         user = Users(
             username=f"tester_{unique_suffix}",
             email=f"tester_{unique_suffix}@example.com",
             password_hash="testhash",
+            role=role,
             is_active=True
         )
         db_session.add(user)
@@ -94,10 +95,12 @@ async def create_test_user(db_session: AsyncSession):
 
 @pytest_asyncio.fixture
 async def authenticated_client(client: AsyncClient, create_test_user):
-    user = await create_test_user()
+
+    user = await create_test_user(role="admin")
+
 
     access_token = create_access_token(
-        {"sub": str(user.id)},
+        {"sub": str(user.id), "role": user.role},
         timedelta(minutes=15)
     )
 
