@@ -81,3 +81,65 @@ async def test_delete_user_by_admin(authenticated_client: AsyncClient, db_sessio
     assert check.status_code == 404
 
 
+
+async def test_get_user_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.get("/users/999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+async def test_delete_user_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.delete("/users/remove/999999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+async def test_change_user_role_forbidden(client: AsyncClient, db_session):
+    new_user_id = (await db_session.execute(
+        insert(Users).values(
+            username="normal_user",
+            email="normal@example.com",
+            password_hash="hash",
+            role="user"
+        ).returning(Users.id)
+    )).scalar()
+    await db_session.commit()
+
+    user_token = create_access_token(
+        {"sub": str(new_user_id)},
+        timedelta(minutes=5)
+    )
+
+    response = await client.patch(
+        "/users/manager",
+        params={"id": 1},
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+
+    assert response.status_code == 403
+
+
+async def test_delete_user_forbidden(client: AsyncClient, db_session):
+    new_user_id = (await db_session.execute(
+        insert(Users).values(
+            username="another_user",
+            email="another@example.com",
+            password_hash="hash",
+            role="user"
+        ).returning(Users.id)
+    )).scalar()
+    await db_session.commit()
+
+    user_token = create_access_token(
+        {"sub": str(new_user_id)},
+        timedelta(minutes=5)
+    )
+
+    response = await client.delete(
+        "/users/remove/1",
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+
+    assert response.status_code == 403
