@@ -13,6 +13,8 @@ from app.core.security import create_access_token
 from app.db.database import Base, get_db
 from app.main import app
 from app.models.user_model import Users
+from app.models.room_model import Rooms
+from app.models.booking_model import Bookings
 
 os.environ["TESTING"] = "true"
 
@@ -106,3 +108,36 @@ async def authenticated_client(client: AsyncClient, create_test_user):
 
     client.headers.update({"Authorization": f"Bearer {access_token}"})
     yield client
+
+
+
+
+
+@pytest_asyncio.fixture
+async def create_room(db_session: AsyncSession):
+
+    async def _create_room(name="Default Room", price=1000, capacity=2, location="Lviv", quantity=1, amenities="WiFi"):
+        room = Rooms(
+            name=name, price=price, capacity=capacity,
+            location=location, quantity=quantity, amenities=amenities
+        )
+        db_session.add(room)
+        await db_session.commit()
+        await db_session.refresh(room)
+        return room
+    return _create_room
+
+
+@pytest_asyncio.fixture
+async def create_booking(db_session: AsyncSession):
+
+    async def _create_booking(user_id: int, room_id: int, start_time, end_time):
+        booking = Bookings(
+            user_id=user_id, room_id=room_id,
+            start_time=start_time, end_time=end_time
+        )
+        db_session.add(booking)
+        await db_session.commit()
+        await db_session.refresh(booking)
+        return booking
+    return _create_booking
