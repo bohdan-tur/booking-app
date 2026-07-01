@@ -138,3 +138,176 @@ async def test_delete_room_success(authenticated_client: AsyncClient, db_session
 
     response = await authenticated_client.delete(f"/rooms/{room.id}")
     assert response.status_code == 204
+
+
+async def test_get_rooms_catalog_not_found(client: AsyncClient, db_session):
+    await db_session.execute(delete(Bookings))
+    await db_session.execute(delete(Rooms))
+    await db_session.commit()
+
+    response = await client.get("/rooms/all")
+    assert response.status_code == 404
+
+
+async def test_get_all_available_rooms_not_found(client: AsyncClient, db_session):
+    await db_session.execute(delete(Bookings))
+    await db_session.execute(delete(Rooms))
+    await db_session.commit()
+
+    response = await client.get("/rooms/available")
+    assert response.status_code == 404
+
+
+async def test_get_specific_available_room_not_found(client: AsyncClient):
+    response = await client.get("/rooms/999999/available")
+    assert response.status_code == 404
+
+
+async def test_get_all_booked_rooms_not_found(authenticated_client: AsyncClient, db_session):
+    await db_session.execute(delete(Bookings))
+    await db_session.commit()
+
+    response = await authenticated_client.get("/rooms/")
+    assert response.status_code == 404
+
+
+async def test_get_specific_booked_room_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.get("/rooms/999999")
+    assert response.status_code == 404
+
+
+async def test_update_room_not_found(authenticated_client: AsyncClient):
+    update_data = {
+        "price": 1500,
+        "name": "Ghost Room",
+        "capacity": 2,
+        "location": "Odessa",
+        "quantity": 3,
+        "amenities": "Mini-bar"
+    }
+    response = await authenticated_client.put("/rooms/999999", json=update_data)
+    assert response.status_code == 404
+
+
+async def test_delete_room_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.delete("/rooms/999999")
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("invalid_data, expected_error_field", [
+
+    (
+            {"price": -500, "name": "Valid Room Name", "capacity": 2, "location": "Valid Location", "quantity": 1,
+             "amenities": "WiFi", "description": "Nice room"},
+            "price"
+    ),
+    (
+            {"price": 500, "name": "Valid Room Name", "capacity": 0, "location": "Valid Location", "quantity": 1,
+             "amenities": "WiFi", "description": "Nice room"},
+            "capacity"
+    ),
+    (
+            {"price": 500, "name": "Valid Room Name", "capacity": 2, "location": "Valid Location", "quantity": -5,
+             "amenities": "WiFi", "description": "Nice room"},
+            "quantity"
+    ),
+
+
+    (
+            {"price": 500, "name": "", "capacity": 2, "location": "Valid Location", "quantity": 1, "amenities": "WiFi",
+             "description": "Nice room"},
+            "name"
+    ),
+
+
+    (
+            {"price": "totally free", "name": "Valid Room Name", "capacity": 2, "location": "Valid Location",
+             "quantity": 1, "amenities": "WiFi", "description": "Nice room"},
+            "price"
+    ),
+
+
+    (
+            {"price": 500, "name": "Valid Room Name", "capacity": 2, "quantity": 1, "amenities": "WiFi",
+             "description": "Nice room"},
+            "location"
+    ),
+])
+async def test_create_room_validation_errors(authenticated_client: AsyncClient, invalid_data, expected_error_field):
+    response = await authenticated_client.post("/rooms/", json=invalid_data)
+
+
+    assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    error_fields = [err["loc"][-1] for err in errors]
+
+    assert expected_error_field in error_fields
+
+
+
+async def test_add_room_forbidden(client: AsyncClient, create_test_user):
+    user = await create_test_user(role="user")
+    user_token = create_access_token(
+        data={"sub": str(user.id), "role": "user"},
+        expires_delta=timedelta(minutes=5)
+    )
+
+    room_data = {
+        "amenities": "WiFi",
+        "capacity": 2,
+        "description": "Test",
+        "location": "Lviv",
+        "name": "New Room",
+        "price": 1000,
+        "quantity": 1
+    }
+
+    response = await client.post(
+        "/rooms/",
+        json=room_data,
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+    assert response.status_code == 403
+
+
+async def test_update_room_forbidden(client: AsyncClient, create_test_user, create_room):
+    user = await create_test_user(role="user")
+    room = await create_room(name="To Update Forbidden")
+
+    user_token = create_access_token(
+        data={"sub": str(user.id), "role": "user"},
+        expires_delta=timedelta(minutes=5)
+    )
+
+    update_data = {
+        "price": 1500,
+        "name": "Hacked Room",
+        "capacity": 2,
+        "location": "Odessa",
+        "quantity": 3,
+        "amenities": "Mini-bar"
+    }
+
+    response = await client.put(
+        f"/rooms/{room.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+    assert response.status_code == 403
+
+
+async def test_delete_room_forbidden(client: AsyncClient, create_test_user, create_room):
+    user = await create_test_user(role="user")
+    room = await create_room(name="To Delete Forbidden")
+
+    user_token = create_access_token(
+        data={"sub": str(user.id), "role": "user"},
+        expires_delta=timedelta(minutes=5)
+    )
+
+    response = await client.delete(
+        f"/rooms/{room.id}",
+        headers={"Authorization": f"Bearer {user_token}"}
+    )
+    assert response.status_code == 403
