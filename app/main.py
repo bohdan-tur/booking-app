@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.routers import auth, users, rooms, bookings
-
+from app.logger import logger
 
 
 app = FastAPI()
