@@ -6,8 +6,8 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+from unittest.mock import patch
 
-from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.db.database import Base, get_db
@@ -141,3 +141,13 @@ async def create_booking(db_session: AsyncSession):
         await db_session.refresh(booking)
         return booking
     return _create_booking
+
+
+
+
+
+@pytest_asyncio.fixture(autouse=True)
+def mock_send_email():
+
+    with patch("app.services.email.send_email", return_value=True) as mock_email:
+        yield mock_email
