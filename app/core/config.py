@@ -25,5 +25,6 @@ class Settings(BaseSettings):
 
     
     DEBUG: bool
+    TESTING: bool = False
 
 settings = Settings()
