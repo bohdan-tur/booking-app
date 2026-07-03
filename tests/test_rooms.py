@@ -1,4 +1,3 @@
-import uuid
 import pytest
 from datetime import datetime, timedelta, UTC
 from httpx import AsyncClient
