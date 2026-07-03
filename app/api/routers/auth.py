@@ -1,6 +1,6 @@
 from datetime import timedelta
 from typing import Annotated
-from app.dependencies import DbSession
+from app.api.dependencies import DbSession
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, or_

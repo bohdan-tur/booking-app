@@ -7,7 +7,7 @@ from app.db.database import AsyncSessionLocal
 from app.models.booking_model import Bookings
 from app.models.user_model import Users
 from app.models.room_model import Rooms
-from app.logger import logger
+from app.core.logger import logger
 from app.services.email import (
     send_booking_confirmation_email,
     send_booking_cancellation_email,

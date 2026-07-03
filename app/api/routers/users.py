@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update, delete
 
-from app.dependencies import DbSession
-from app.dependencies import allow_admin_and_manager, allow_admin, get_current_user
+from app.api.dependencies import DbSession
+from app.api.dependencies import allow_admin_and_manager, allow_admin, get_current_user
 from app.models.role_model import Role
 from app.models.user_model import Users
 
