@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 
+
 class RoomBase(BaseModel):
     name: str = Field(min_length=3, max_length=100)
     description: str | None = None
@@ -19,13 +20,15 @@ class RoomBase(BaseModel):
                 "capacity": 2,
                 "amenities": "Wi-Fi, Air conditioning, Breakfast",
                 "quantity": 5,
-                "location": "Lviv, Teatralna St, 15"
+                "location": "Lviv, Teatralna St, 15",
             }
-        }
+        },
     )
+
 
 class RoomCreate(RoomBase):
     pass
+
 
 class RoomOut(RoomBase):
     id: int

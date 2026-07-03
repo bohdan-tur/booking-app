@@ -19,4 +19,6 @@ class Rooms(Base):
     quantity: Mapped[int] = mapped_column(nullable=False)
     location: Mapped[str] = mapped_column(nullable=False)
 
-    bookings: Mapped[list["Bookings"]] = relationship("Bookings", back_populates="room", cascade="all, delete")
+    bookings: Mapped[list["Bookings"]] = relationship(
+        "Bookings", back_populates="room", cascade="all, delete"
+    )

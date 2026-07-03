@@ -5,7 +5,7 @@ async def test_register_user_success(client: AsyncClient):
     payload = {
         "username": "BohdanSuccess",
         "email": "bohdan_success@example.com",
-        "password": "password12345"
+        "password": "password12345",
     }
     response = await client.post("/auth/register", json=payload)
 
@@ -17,14 +17,11 @@ async def test_login_user_by_email(client: AsyncClient):
     payload = {
         "username": "LoginEmailUser",
         "email": "login_email@example.com",
-        "password": "password12345"
+        "password": "password12345",
     }
     await client.post("/auth/register", json=payload)
 
-    login_data = {
-        "username": payload["email"],
-        "password": payload["password"]
-    }
+    login_data = {"username": payload["email"], "password": payload["password"]}
     response = await client.post("/auth/login", data=login_data)
 
     assert response.status_code == 200
@@ -36,14 +33,11 @@ async def test_login_user_by_username(client: AsyncClient):
     payload = {
         "username": "LoginUsernameUser",
         "email": "login_username@example.com",
-        "password": "password12345"
+        "password": "password12345",
     }
     await client.post("/auth/register", json=payload)
 
-    login_data = {
-        "username": payload["username"],
-        "password": payload["password"]
-    }
+    login_data = {"username": payload["username"], "password": payload["password"]}
     response = await client.post("/auth/login", data=login_data)
 
     assert response.status_code == 200
@@ -54,20 +48,15 @@ async def test_refresh_token_success(client: AsyncClient):
     payload = {
         "username": "RefreshUser",
         "email": "refresh@example.com",
-        "password": "password12345"
+        "password": "password12345",
     }
     await client.post("/auth/register", json=payload)
 
-    login_data = {
-        "username": payload["email"],
-        "password": payload["password"]
-    }
+    login_data = {"username": payload["email"], "password": payload["password"]}
     login_response = await client.post("/auth/login", data=login_data)
     refresh_token = login_response.json()["refresh_token"]
 
-    refresh_payload = {
-        "refresh_token": refresh_token
-    }
+    refresh_payload = {"refresh_token": refresh_token}
 
     response = await client.post("/auth/", json=refresh_payload)
 
@@ -80,14 +69,11 @@ async def test_login_wrong_password(client: AsyncClient):
     payload = {
         "username": "WrongPassUser",
         "email": "wrong_pass@example.com",
-        "password": "CorrectPassword123"
+        "password": "CorrectPassword123",
     }
     await client.post("/auth/register", json=payload)
 
-    login_data = {
-        "username": payload["email"],
-        "password": "WrongPassword123"
-    }
+    login_data = {"username": payload["email"], "password": "WrongPassword123"}
     response = await client.post("/auth/login", data=login_data)
 
     assert response.status_code == 401
@@ -97,7 +83,7 @@ async def test_login_wrong_password(client: AsyncClient):
 async def test_login_nonexistent_user(client: AsyncClient):
     login_data = {
         "username": "nobody_exists@example.com",
-        "password": "SomePassword123"
+        "password": "SomePassword123",
     }
     response = await client.post("/auth/login", data=login_data)
 
@@ -109,7 +95,7 @@ async def test_register_duplicate_user(client: AsyncClient):
     payload = {
         "username": "DuplicateUser",
         "email": "duplicate@example.com",
-        "password": "password12345"
+        "password": "password12345",
     }
 
     response1 = await client.post("/auth/register", json=payload)
@@ -121,9 +107,7 @@ async def test_register_duplicate_user(client: AsyncClient):
 
 
 async def test_refresh_token_invalid(client: AsyncClient):
-    refresh_payload = {
-        "refresh_token": "fake.invalid.token"
-    }
+    refresh_payload = {"refresh_token": "fake.invalid.token"}
 
     response = await client.post("/auth/", json=refresh_payload)
 
