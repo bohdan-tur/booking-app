@@ -1,6 +1,5 @@
 from celery import Celery
 from app.core.config import settings
-from app.logger import logger
 
 
 if settings.TESTING:

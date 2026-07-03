@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y libpq-dev gcc
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt --user
+RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.13-slim
 
@@ -15,9 +15,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y libpq-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
