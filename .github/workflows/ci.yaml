@@ -1,0 +1,51 @@
+name: Booking App CI
+
+
+on:
+  push:
+    branches: [main,master,ci/ci-implementation]
+  pull_request:
+    branches: [main,master]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Code downloading"
+        uses: actions/checkout@v4
+      - name: "Set up Python code"
+        uses: actions/setup-python@v5
+        with:
+              python-version: "3.13"
+      - name: "Check code with Ruff"
+        run: |
+           pip install ruff
+           ruff check .
+
+      - name: "Create .env file"
+        run: |
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "TEST_DATABASE_URL=postgresql+asyncpg://postgres:password@db_test:5432/test_db" >> .env
+          echo "REDIS_URL=redis://redis:6379/0" >> .env
+          echo "ALGORITHM=HS256" >> .env
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+          echo "REFRESH_SECRET_KEY=${{ secrets.REFRESH_SECRET_KEY }}" >> .env
+          echo "ACCESS_TOKEN_EXPIRE_MINUTES=15" >> .env
+          echo "REFRESH_TOKEN_EXPIRE_DAYS=7" >> .env
+          echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
+          echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
+          echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
+          echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+          echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
+          echo "DEBUG=true" >> .env
+          echo "TESTING=true" >> .env
+
+      - name: "Start test database"
+        run: docker compose up -d db_test
+
+      - name: "Wait for database to be ready"
+        run: |
+          timeout 60 bash -c 'until docker compose exec -T db_test pg_isready -U postgres -d test_db; do sleep 2; done'
+
+      - name: "Running tests with Docker compose"
+        run: docker compose run --rm tests
