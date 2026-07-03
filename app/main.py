@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routers import auth, users, rooms, bookings
+from app.api.routers import auth, users, rooms, bookings,system
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logger import logger
@@ -37,3 +37,4 @@ app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(rooms.router, prefix="/rooms", tags=["Rooms"])
 app.include_router(bookings.router, prefix="/bookings", tags=["Bookings"])
+app.include_router(system.router, prefix="/system", tags=["System"])
