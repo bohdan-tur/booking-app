@@ -32,7 +32,7 @@ async def seed_data():
                 email="admin@booking.com",
                 password_hash=get_password_hash("AdminSecure123!"),
                 role=Role.admin,
-                is_active=True
+                is_active=True,
             )
             session.add(admin_user)
         else:
@@ -49,7 +49,7 @@ async def seed_data():
                 email="manager@booking.com",
                 password_hash=get_password_hash("ManagerSecure456!"),
                 role=Role.manager,
-                is_active=True
+                is_active=True,
             )
             session.add(manager_user)
         else:
@@ -66,7 +66,7 @@ async def seed_data():
                 email="user@booking.com",
                 password_hash=get_password_hash("UserSecure789!"),
                 role=Role.user,
-                is_active=True
+                is_active=True,
             )
             session.add(regular_user)
         else:
@@ -77,5 +77,4 @@ async def seed_data():
 
 
 if __name__ == "__main__":
-
     asyncio.run(seed_data())

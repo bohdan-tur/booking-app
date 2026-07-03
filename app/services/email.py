@@ -20,7 +20,7 @@ def send_email(to_email: str, subject: str, body: str, html_body: str = None) ->
             html_part = MIMEText(html_body, "html", "utf-8")
             message.attach(html_part)
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT,timeout = 10) as server:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.EMAIL_FROM, to_email, message.as_string())
@@ -34,12 +34,12 @@ def send_email(to_email: str, subject: str, body: str, html_body: str = None) ->
 
 
 def send_booking_confirmation_email(
-        user_email: str,
-        user_name: str,
-        booking_id: int,
-        room_name: str,
-        start_time: datetime,
-        end_time: datetime
+    user_email: str,
+    user_name: str,
+    booking_id: int,
+    room_name: str,
+    start_time: datetime,
+    end_time: datetime,
 ) -> bool:
     subject = "✅ Booking Confirmation"
 
@@ -51,14 +51,14 @@ Thank you for your booking! 🎉
 📋 Booking Details:
 • Booking ID: #{booking_id}
 • Room Name: {room_name}
-• Check-in: {start_time.strftime('%d.%m.%Y at %H:%M')}
-• Check-out: {end_time.strftime('%d.%m.%Y at %H:%M')}
+• Check-in: {start_time.strftime("%d.%m.%Y at %H:%M")}
+• Check-out: {end_time.strftime("%d.%m.%Y at %H:%M")}
 
 Your booking is confirmed and waiting for you.
 
 ℹ️ Important Information:
-• Check-in time: after {start_time.strftime('%H:%M')}
-• Check-out time: before {end_time.strftime('%H:%M')}
+• Check-in time: after {start_time.strftime("%H:%M")}
+• Check-out time: before {end_time.strftime("%H:%M")}
 • Please contact us if you have any questions.
 
 Best regards,
@@ -78,16 +78,16 @@ Booking System Team
             <ul>
                 <li><strong>Booking ID:</strong> #{booking_id}</li>
                 <li><strong>Room Name:</strong> {room_name}</li>
-                <li><strong>Check-in:</strong> {start_time.strftime('%d.%m.%Y at %H:%M')}</li>
-                <li><strong>Check-out:</strong> {end_time.strftime('%d.%m.%Y at %H:%M')}</li>
+                <li><strong>Check-in:</strong> {start_time.strftime("%d.%m.%Y at %H:%M")}</li>
+                <li><strong>Check-out:</strong> {end_time.strftime("%d.%m.%Y at %H:%M")}</li>
             </ul>
         </div>
 
         <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px;">
             <h4>ℹ️ Important Information:</h4>
             <ul>
-                <li>Check-in time: after {start_time.strftime('%H:%M')}</li>
-                <li>Check-out time: before {end_time.strftime('%H:%M')}</li>
+                <li>Check-in time: after {start_time.strftime("%H:%M")}</li>
+                <li>Check-out time: before {end_time.strftime("%H:%M")}</li>
                 <li>Please contact us if you have any questions.</li>
             </ul>
         </div>
@@ -101,7 +101,9 @@ Booking System Team
     return send_email(user_email, subject, body, html_body)
 
 
-def send_booking_cancellation_email(user_email: str, user_name: str, booking_id: int) -> bool:
+def send_booking_cancellation_email(
+    user_email: str, user_name: str, booking_id: int
+) -> bool:
     subject = "❌ Booking Cancellation"
 
     body = f"""
@@ -123,11 +125,11 @@ Booking System Team
 
 
 def send_booking_reminder_email(
-        user_email: str,
-        user_name: str,
-        booking_id: int,
-        room_name: str,
-        start_time: datetime
+    user_email: str,
+    user_name: str,
+    booking_id: int,
+    room_name: str,
+    start_time: datetime,
 ) -> bool:
     subject = "⏰ Upcoming Booking Reminder"
 
@@ -138,7 +140,7 @@ This is a reminder that your booking #{booking_id} starts tomorrow!
 
 📋 Booking Details:
 • Room Name: {room_name}
-• Check-in: {start_time.strftime('%d.%m.%Y at %H:%M')}
+• Check-in: {start_time.strftime("%d.%m.%Y at %H:%M")}
 
 Please be on time. We are looking forward to hosting you! 😊
 

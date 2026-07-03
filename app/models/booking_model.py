@@ -15,7 +15,9 @@ class Bookings(Base):
     __tablename__ = "bookings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    room_id: Mapped[int] = mapped_column(
+        ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     start_time: Mapped[datetime] = mapped_column(nullable=False)

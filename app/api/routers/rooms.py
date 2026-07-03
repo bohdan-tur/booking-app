@@ -13,7 +13,7 @@ from app.schemas.room_schema import RoomCreate, RoomOut
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
-router = APIRouter(tags=['Rooms'])
+router = APIRouter(tags=["Rooms"])
 
 
 @router.get("/all", status_code=status.HTTP_200_OK)
@@ -23,7 +23,9 @@ async def get_rooms_catalog(db: db_dependency):
     res = rooms.scalars().all()
 
     if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No rooms found in the hotel")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No rooms found in the hotel"
+        )
     return res
 
 
@@ -38,7 +40,10 @@ async def get_all_not_booked_rooms(db: db_dependency):
     res = rooms.scalars().all()
 
     if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't available rooms right now")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="There aren't available rooms right now",
+        )
     return res
 
 
@@ -49,36 +54,49 @@ async def get_not_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt
         and_(
             Bookings.room_id == room_id,
             Bookings.start_time <= now,
-            Bookings.end_time >= now
+            Bookings.end_time >= now,
         )
     )
-    query = select(Rooms).filter(and_(Rooms.id == room_id, not_(Rooms.id.in_(is_occupied))))
+    query = select(Rooms).filter(
+        and_(Rooms.id == room_id, not_(Rooms.id.in_(is_occupied)))
+    )
     res = (await db.execute(query)).scalar()
 
     if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There isn't such room or it is booked")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="There isn't such room or it is booked",
+        )
     return res
 
 
-@router.get("/{room_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
+@router.get(
+    "/{room_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin_and_manager)],
+)
 async def get_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
     now = datetime.now(UTC).replace(tzinfo=None)
     is_occupied = select(Bookings.room_id).filter(
         and_(
             Bookings.room_id == room_id,
             Bookings.start_time <= now,
-            Bookings.end_time >= now
+            Bookings.end_time >= now,
         )
     )
     query = select(Rooms).filter(and_(Rooms.id == room_id, Rooms.id.in_(is_occupied)))
     res = (await db.execute(query)).scalar()
 
     if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room is not booked")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room is not booked"
+        )
     return res
 
 
-@router.get("/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
+@router.get(
+    "/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)]
+)
 async def get_all_booked_rooms(db: db_dependency):
     now = datetime.now(UTC).replace(tzinfo=None)
     occupied_ids = select(Bookings.room_id).filter(
@@ -89,11 +107,19 @@ async def get_all_booked_rooms(db: db_dependency):
     res = rooms.scalars().all()
 
     if not res:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There aren't booked rooms right now")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="There aren't booked rooms right now",
+        )
     return res
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=RoomOut, dependencies=[Depends(allow_admin)])
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RoomOut,
+    dependencies=[Depends(allow_admin)],
+)
 async def add_room(room_data: RoomCreate, db: db_dependency):
     new_room = Rooms(**room_data.model_dump())
     db.add(new_room)
@@ -102,11 +128,13 @@ async def add_room(room_data: RoomCreate, db: db_dependency):
     return new_room
 
 
-@router.put('/{room_id}', status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)])
+@router.put(
+    "/{room_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin_and_manager)],
+)
 async def change_room(
-        db: db_dependency,
-        room_id: Annotated[int, Path(gt=0)],
-        room_data: RoomCreate
+    db: db_dependency, room_id: Annotated[int, Path(gt=0)], room_data: RoomCreate
 ):
     changed_room = await db.execute(
         update(Rooms)
@@ -117,18 +145,29 @@ async def change_room(
 
     res = changed_room.scalar()
     if res is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
 
     await db.commit()
     return {"status": "success"}
 
 
-@router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(allow_admin)])
+@router.delete(
+    "/{room_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(allow_admin)],
+)
 async def delete_room_by_id(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
-    deleted_room = await db.execute(delete(Rooms).filter(Rooms.id == room_id).returning(Rooms.id))
+    deleted_room = await db.execute(
+        delete(Rooms).filter(Rooms.id == room_id).returning(Rooms.id)
+    )
     res = deleted_room.scalars().first()
 
     if res is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Room with id {room_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Room with id {room_id} not found",
+        )
 
     await db.commit()

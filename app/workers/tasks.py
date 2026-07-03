@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, UTC
 from sqlalchemy import select, update, delete
 
-from app.celery.app import celery_app
+from app.workers.app import celery_app
 from app.db.database import AsyncSessionLocal
 from app.models.booking_model import Bookings
 from app.models.user_model import Users
@@ -12,16 +12,28 @@ from app.services.email import (
     send_booking_confirmation_email,
     send_booking_cancellation_email,
     send_booking_reminder_email,
-    send_email
+    send_email,
 )
 
 
 @celery_app.task(bind=True, max_retries=3, name="process_booking_creation")
-def process_booking_creation(self, booking_id: int, user_id: int, room_id: int, start_time: datetime, end_time: datetime):
+def process_booking_creation(
+    self,
+    booking_id: int,
+    user_id: int,
+    room_id: int,
+    start_time: datetime,
+    end_time: datetime,
+):
     async def process_booking():
         async with AsyncSessionLocal() as session:
             try:
-                stmt = select(Bookings, Users, Rooms).join(Users).join(Rooms).where(Bookings.id == booking_id)
+                stmt = (
+                    select(Bookings, Users, Rooms)
+                    .join(Users)
+                    .join(Rooms)
+                    .where(Bookings.id == booking_id)
+                )
                 result = await session.execute(stmt)
                 booking_data = result.first()
 
@@ -37,7 +49,7 @@ def process_booking_creation(self, booking_id: int, user_id: int, room_id: int, 
                     booking_id=booking.id,
                     room_name=room.name,
                     start_time=booking.start_time,
-                    end_time=booking.end_time
+                    end_time=booking.end_time,
                 )
 
                 if email_sent:
@@ -72,18 +84,22 @@ def process_booking_cancellation(self, booking_id: int, user_id: int):
                 email_sent = send_booking_cancellation_email(
                     user_email=user.email,
                     user_name=user.username,
-                    booking_id=booking_id
+                    booking_id=booking_id,
                 )
 
                 if email_sent:
                     logger.info(f"Cancellation email sent for booking {booking_id}")
                     return {"status": "success", "email_sent": True}
                 else:
-                    logger.error(f"Failed to send cancellation email for booking {booking_id}")
+                    logger.error(
+                        f"Failed to send cancellation email for booking {booking_id}"
+                    )
                     return {"status": "success", "email_sent": False}
 
             except Exception as exc:
-                logger.error(f"Error processing booking cancellation {booking_id}: {exc}")
+                logger.error(
+                    f"Error processing booking cancellation {booking_id}: {exc}"
+                )
                 if self.request.retries < self.max_retries:
                     raise self.retry(countdown=60 * (self.request.retries + 1))
                 return {"status": "error", "message": str(exc)}
@@ -98,17 +114,22 @@ def update_expired_bookings():
             try:
                 current_time = datetime.now(UTC)
 
-                stmt = update(Bookings).where(
-                    Bookings.end_time < current_time,
-                    Bookings.status == "active"
-                ).values(status="expired")
+                stmt = (
+                    update(Bookings)
+                    .where(
+                        Bookings.end_time < current_time, Bookings.status == "active"
+                    )
+                    .values(status="expired")
+                )
 
                 result = await session.execute(stmt)
                 await session.commit()
 
                 updated_count = result.rowcount
                 if updated_count > 0:
-                    logger.info(f"Updated {updated_count} booking statuses to 'expired'")
+                    logger.info(
+                        f"Updated {updated_count} booking statuses to 'expired'"
+                    )
 
                 return updated_count
 
@@ -126,13 +147,22 @@ def send_daily_reminders():
         async with AsyncSessionLocal() as session:
             try:
                 tomorrow = datetime.now(UTC) + timedelta(days=1)
-                start_of_tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_tomorrow = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
+                start_of_tomorrow = tomorrow.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                end_of_tomorrow = tomorrow.replace(
+                    hour=23, minute=59, second=59, microsecond=999999
+                )
 
-                stmt = select(Bookings, Users, Rooms).join(Users).join(Rooms).where(
-                    Bookings.start_time >= start_of_tomorrow,
-                    Bookings.start_time <= end_of_tomorrow,
-                    Bookings.status == "active"
+                stmt = (
+                    select(Bookings, Users, Rooms)
+                    .join(Users)
+                    .join(Rooms)
+                    .where(
+                        Bookings.start_time >= start_of_tomorrow,
+                        Bookings.start_time <= end_of_tomorrow,
+                        Bookings.status == "active",
+                    )
                 )
 
                 result = await session.execute(stmt)
@@ -146,17 +176,21 @@ def send_daily_reminders():
                             user_name=user.username,
                             booking_id=booking.id,
                             room_name=room.name,
-                            start_time=booking.start_time
+                            start_time=booking.start_time,
                         )
 
                         if email_sent:
                             reminders_sent += 1
                             logger.info(f"Reminder sent for booking {booking.id}")
                         else:
-                            logger.error(f"Failed to send reminder for booking {booking.id}")
+                            logger.error(
+                                f"Failed to send reminder for booking {booking.id}"
+                            )
 
                     except Exception as e:
-                        logger.error(f"Error sending reminder for booking {booking.id}: {e}")
+                        logger.error(
+                            f"Error sending reminder for booking {booking.id}: {e}"
+                        )
 
                 if reminders_sent > 0:
                     logger.info(f"Sent {reminders_sent} reminders")
@@ -178,8 +212,7 @@ def cleanup_old_bookings():
                 one_year_ago = datetime.now(UTC) - timedelta(days=365)
 
                 stmt = delete(Bookings).where(
-                    Bookings.end_time < one_year_ago,
-                    Bookings.status == "expired"
+                    Bookings.end_time < one_year_ago, Bookings.status == "expired"
                 )
 
                 result = await session.execute(stmt)
@@ -204,12 +237,13 @@ def generate_daily_statistics():
     async def generate_stats():
         async with AsyncSessionLocal() as session:
             try:
-                today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+                today = datetime.now(UTC).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
                 tomorrow = today + timedelta(days=1)
 
                 stmt = select(Bookings).where(
-                    Bookings.start_time >= today,
-                    Bookings.start_time < tomorrow
+                    Bookings.start_time >= today, Bookings.start_time < tomorrow
                 )
                 result = await session.execute(stmt)
                 today_bookings = len(result.scalars().all())
@@ -220,8 +254,7 @@ def generate_daily_statistics():
 
                 week_ago = datetime.now(UTC) - timedelta(days=7)
                 stmt = select(Bookings).where(
-                    Bookings.end_time >= week_ago,
-                    Bookings.status == "completed"
+                    Bookings.end_time >= week_ago, Bookings.status == "completed"
                 )
                 result = await session.execute(stmt)
                 completed_bookings = len(result.scalars().all())
@@ -231,7 +264,7 @@ def generate_daily_statistics():
                 admins = result.scalars().all()
 
                 report = f"""
-Daily Report ({datetime.now(UTC).strftime('%d.%m.%Y')})
+Daily Report ({datetime.now(UTC).strftime("%d.%m.%Y")})
 
 Statistics:
 • New bookings today: {today_bookings}
@@ -246,17 +279,19 @@ More detailed statistics are available in the admin panel.
                         send_email(
                             to_email=admin.email,
                             subject=f"Daily Report - {datetime.now(UTC).strftime('%d.%m.%Y')}",
-                            body=report
+                            body=report,
                         )
                         logger.info(f"Daily report sent to admin {admin.email}")
                     except Exception as e:
-                        logger.error(f"Error sending daily report to admin {admin.email}: {e}")
+                        logger.error(
+                            f"Error sending daily report to admin {admin.email}: {e}"
+                        )
 
                 return {
                     "today_bookings": today_bookings,
                     "active_bookings": active_bookings,
                     "completed_bookings": completed_bookings,
-                    "admins_notified": len(admins)
+                    "admins_notified": len(admins),
                 }
 
             except Exception as e:

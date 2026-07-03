@@ -15,20 +15,17 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: DbSession
+    token: Annotated[str, Depends(oauth2_scheme)], db: DbSession
 ) -> Users:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
+        headers={"WWW-Authenticate": "Bearer"},
     )
-
 
     user_id_str = verify_access_token(token)
     if not user_id_str:
         raise credentials_exception
-
 
     stmt = select(Users).filter(Users.id == int(user_id_str))
     result = await db.execute(stmt)
@@ -40,8 +37,6 @@ async def get_current_user(
     return user
 
 
-
-
 class CheckRole:
     def __init__(self, allowed_roles: list[Role]):
         self.allowed_roles = allowed_roles
@@ -51,10 +46,9 @@ class CheckRole:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Your role is {user.role.value if hasattr(user.role, 'value') else user.role}. "
-                       f"Allowed roles: {[role.value for role in self.allowed_roles]}"
+                f"Allowed roles: {[role.value for role in self.allowed_roles]}",
             )
         return user
-
 
 
 allow_admin = CheckRole([Role.admin])

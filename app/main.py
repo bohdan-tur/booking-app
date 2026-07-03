@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routers import auth, users, rooms, bookings,system
+from app.api.routers import auth, users, rooms, bookings, system
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logger import logger
@@ -32,6 +32,7 @@ async def log_requests(request: Request, call_next):
         f"Time: {process_time:.4f}s"
     )
     return response
+
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/users", tags=["Users"])

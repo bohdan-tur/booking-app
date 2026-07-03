@@ -98,7 +98,7 @@ services:
   celery_worker:
     build: .
     container_name: booking_celery_worker
-    command: celery -A app.celery_app worker --loglevel=info
+    command: workers -A app.celery_app worker --loglevel=info
     volumes:
       - .:/app
     environment:
@@ -121,7 +121,7 @@ services:
   celery_beat:
     build: .
     container_name: booking_celery_beat
-    command: celery -A app.celery_app beat --loglevel=info
+    command: workers -A app.celery_app beat --loglevel=info
     volumes:
       - .:/app
     environment:
@@ -144,7 +144,7 @@ services:
   flower:
     build: .
     container_name: booking_flower
-    command: celery -A app.celery_app flower --port=5555
+    command: workers -A app.celery_app flower --port=5555
     volumes:
       - .:/app
     ports:
