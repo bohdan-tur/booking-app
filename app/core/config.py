@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     REFRESH_SECRET_KEY: str
     ALGORITHM: str
     
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
-    REFRESH_TOKEN_EXPIRE_DAYS: int
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     SMTP_HOST: str
     SMTP_PORT: int
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     
 
     
-    DEBUG: bool
+    DEBUG: bool = True
     TESTING: bool = False
 
 settings = Settings()
