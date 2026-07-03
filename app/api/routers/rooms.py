@@ -6,7 +6,7 @@ from sqlalchemy import select, update, delete, and_, not_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.dependencies import allow_admin, allow_admin_and_manager
+from app.api.dependencies import allow_admin, allow_admin_and_manager
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
 from app.schemas.room_schema import RoomCreate, RoomOut

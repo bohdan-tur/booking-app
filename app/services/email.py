@@ -3,7 +3,7 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
-from app.logger import logger
+from app.core.logger import logger
 
 
 def send_email(to_email: str, subject: str, body: str, html_body: str = None) -> bool:

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import auth, users, rooms, bookings
+from app.api.routers import auth, users, rooms, bookings
 
 
 app = FastAPI()

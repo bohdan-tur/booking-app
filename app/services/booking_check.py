@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy import select
-from app.dependencies import DbSession
+from app.api.dependencies import DbSession
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
 
