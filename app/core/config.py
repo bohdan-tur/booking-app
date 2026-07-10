@@ -1,7 +1,7 @@
-from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+
+
 
 
 class Settings(BaseSettings):
@@ -31,6 +31,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
     ]
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 settings = Settings()
