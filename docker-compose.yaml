@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - 5432:5432
+      - "5436:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     container_name: booking_redis
     restart: always
     ports:
-      - 6379:6379
+      - "6381:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -35,6 +35,8 @@ services:
     build: .
     container_name: booking_alembic
     command: alembic upgrade head
+    volumes:
+      - .:/app
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - TEST_DATABASE_URL=${TEST_DATABASE_URL}
@@ -63,7 +65,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - 8001:8000
+      - "8001:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
@@ -148,7 +150,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - 5555:5555
+      - "5555:5555"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
