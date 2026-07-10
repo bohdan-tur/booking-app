@@ -15,5 +15,5 @@ Thumbs.db
 logs/*.log
 *.log
 
-celerybeat-schedule
+celerybeat-schedule*
 celerybeat.pid
