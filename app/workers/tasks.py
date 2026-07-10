@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
 from sqlalchemy import select, update, delete
 
 from app.workers.app import celery_app
@@ -112,7 +112,7 @@ def update_expired_bookings():
     async def update_statuses():
         async with AsyncSessionLocal() as session:
             try:
-                current_time = datetime.now(UTC)
+                current_time = datetime.now()
 
                 stmt = (
                     update(Bookings)
@@ -146,7 +146,7 @@ def send_daily_reminders():
     async def send_reminders():
         async with AsyncSessionLocal() as session:
             try:
-                tomorrow = datetime.now(UTC) + timedelta(days=1)
+                tomorrow = datetime.now() + timedelta(days=1)
                 start_of_tomorrow = tomorrow.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )
@@ -209,7 +209,7 @@ def cleanup_old_bookings():
     async def cleanup():
         async with AsyncSessionLocal() as session:
             try:
-                one_year_ago = datetime.now(UTC) - timedelta(days=365)
+                one_year_ago = datetime.now() - timedelta(days=365)
 
                 stmt = delete(Bookings).where(
                     Bookings.end_time < one_year_ago, Bookings.status == "expired"
@@ -237,7 +237,7 @@ def generate_daily_statistics():
     async def generate_stats():
         async with AsyncSessionLocal() as session:
             try:
-                today = datetime.now(UTC).replace(
+                today = datetime.now().replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )
                 tomorrow = today + timedelta(days=1)
@@ -252,7 +252,7 @@ def generate_daily_statistics():
                 result = await session.execute(stmt)
                 active_bookings = len(result.scalars().all())
 
-                week_ago = datetime.now(UTC) - timedelta(days=7)
+                week_ago = datetime.now() - timedelta(days=7)
                 stmt = select(Bookings).where(
                     Bookings.end_time >= week_ago, Bookings.status == "completed"
                 )
@@ -264,7 +264,7 @@ def generate_daily_statistics():
                 admins = result.scalars().all()
 
                 report = f"""
-Daily Report ({datetime.now(UTC).strftime("%d.%m.%Y")})
+Daily Report ({datetime.now().strftime("%d.%m.%Y")})
 
 Statistics:
 • New bookings today: {today_bookings}
@@ -278,7 +278,7 @@ More detailed statistics are available in the admin panel.
                     try:
                         send_email(
                             to_email=admin.email,
-                            subject=f"Daily Report - {datetime.now(UTC).strftime('%d.%m.%Y')}",
+                            subject=f"Daily Report - {datetime.now().strftime('%d.%m.%Y')}",
                             body=report,
                         )
                         logger.info(f"Daily report sent to admin {admin.email}")

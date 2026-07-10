@@ -7,7 +7,7 @@ if settings.TESTING:
         "booking_app",
         broker="memory://",
         backend="cache+memory://",
-        include=["app.tasks"],
+        include=["app.workers.tasks"],
     )
     celery_app.conf.update(
         task_always_eager=True,
@@ -18,7 +18,7 @@ else:
         "booking_app",
         broker=settings.REDIS_URL,
         backend=settings.REDIS_URL,
-        include=["app.tasks"],
+        include=["app.workers.tasks"],
     )
 
 celery_app.conf.update(
@@ -29,15 +29,15 @@ celery_app.conf.update(
     enable_utc=True,
     beat_schedule={
         "update-expired-bookings": {
-            "task": "app.tasks.update_expired_bookings",
+            "task": "app.workers.tasks.update_expired_bookings",
             "schedule": 3600.0,
         },
         "send-daily-reminders": {
-            "task": "app.tasks.send_daily_reminders",
+            "task": "app.workers.tasks.send_daily_reminders",
             "schedule": 86400.0,
         },
         "generate-daily-statistics": {
-            "task": "app.tasks.generate_daily_statistics",
+            "task": "app.workers.tasks.generate_daily_statistics",
             "schedule": 86400.0,
         },
     },
