@@ -2,14 +2,16 @@ import pytest
 from datetime import datetime, timedelta, UTC
 from httpx import AsyncClient
 from sqlalchemy import delete
+from unittest.mock import patch
 
 from app.models.room_model import Rooms
 from app.models.booking_model import Bookings
 from app.core.security import create_access_token
 
 
+@patch("app.api.routers.bookings.process_booking_creation.delay")
 async def test_book_room_success(
-    authenticated_client: AsyncClient, db_session, create_room
+    mock_delay, authenticated_client: AsyncClient, db_session, create_room
 ):
     await db_session.execute(delete(Bookings))
     await db_session.execute(delete(Rooms))
@@ -31,6 +33,8 @@ async def test_book_room_success(
     data = response.json()
     assert data["room_id"] == room.id
     assert "id" in data
+
+    mock_delay.assert_called_once()
 
 
 async def test_get_all_bookings_success(
@@ -109,8 +113,14 @@ async def test_update_booking_success(
     assert response.json() == {"status": "success"}
 
 
+@patch("app.api.routers.bookings.process_booking_cancellation.delay")
 async def test_cancel_own_booking_success(
-    client: AsyncClient, db_session, create_room, create_test_user, create_booking
+    mock_delay,
+    client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
 ):
     await db_session.execute(delete(Bookings))
     await db_session.execute(delete(Rooms))
@@ -130,6 +140,8 @@ async def test_cancel_own_booking_success(
     )
 
     assert response.status_code == 204
+
+    mock_delay.assert_called_once()
 
 
 async def test_get_all_bookings_not_found(
