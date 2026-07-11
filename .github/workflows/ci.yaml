@@ -3,9 +3,9 @@ name: Booking App CI
 
 on:
   push:
-    branches: [main,master,ci/ci-implementation]
+    branches: [ main,master,ci/ci-implementation ]
   pull_request:
-    branches: [main,master]
+    branches: [ main,master ]
 
 jobs:
   tests:
@@ -16,11 +16,11 @@ jobs:
       - name: "Set up Python code"
         uses: actions/setup-python@v5
         with:
-              python-version: "3.13"
+          python-version: "3.13"
       - name: "Check code with Ruff"
         run: |
-           pip install ruff
-           ruff check .
+          pip install ruff
+          ruff check .
 
       - name: "Create .env file"
         run: |
@@ -30,6 +30,9 @@ jobs:
           echo "ALGORITHM=HS256" >> .env
           echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
           echo "REFRESH_SECRET_KEY=${{ secrets.REFRESH_SECRET_KEY }}" >> .env
+          echo ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+          echo MANAGER_DEFAULT_PASSWORD: ${{ secrets.MANAGER_DEFAULT_PASSWORD }}
+          echo USER_DEFAULT_PASSWORD: ${{ secrets.USER_DEFAULT_PASSWORD }}
           echo "ACCESS_TOKEN_EXPIRE_MINUTES=15" >> .env
           echo "REFRESH_TOKEN_EXPIRE_DAYS=7" >> .env
           echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env

@@ -52,6 +52,9 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
       - DEBUG=${DEBUG}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +80,9 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     depends_on:
       alembic:
         condition: service_completed_successfully
@@ -114,6 +120,9 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -137,6 +146,9 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -162,6 +174,9 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -190,6 +205,9 @@ services:
       - EMAIL_FROM=${EMAIL_FROM}
       - DEBUG=${DEBUG}
       - TESTING=true
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
+      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
     restart: "no"
     command: pytest -v tests/
 
