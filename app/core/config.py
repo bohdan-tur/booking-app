@@ -1,10 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from pydantic import Field
 
 class Settings(BaseSettings):
     DATABASE_URL: str
     TEST_DATABASE_URL: str
     REDIS_URL: str
+
+    ADMIN_DEFAULT_PASSWORD: str = Field(default="dev_admin_password")
+    MANAGER_DEFAULT_PASSWORD: str = Field(default="dev_manager_password")
+    USER_DEFAULT_PASSWORD: str = Field(default="dev_user_password")
 
     SECRET_KEY: str
     REFRESH_SECRET_KEY: str
