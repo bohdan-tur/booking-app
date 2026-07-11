@@ -4,19 +4,19 @@ A modern RESTful hotel booking API built with FastAPI, PostgreSQL, Redis, and Ce
 
 ## Table of Contents 📚
 
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Environment Variables](#environment-variables)
-- [Docker Services](#docker-services)
-- [Getting Started](#getting-started)
-- [API Usage Example](#api-usage-example)
-- [Testing](#testing)
-- [Background Tasks](#background-tasks)
-- [Authentication](#authentication)
-- [Author](#author)
+- [Overview](#-overview)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Architecture](#-architecture)
+- [Project Structure](#-project-structure)
+- [Environment Variables](#-environment-variables)
+- [Docker Services](#-docker-services)
+- [Getting Started](#-getting-started)
+- [API Usage Example](#-api-usage-example)
+- [Testing](#-testing)
+- [Background Tasks](#-background-tasks)
+- [Authentication](#-authentication)
+- [Author](#-author)
 
 ## Overview 📋
 
