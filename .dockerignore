@@ -1,4 +1,4 @@
-# Python
+
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,11 +26,11 @@ venv/
 .venv/
 bin/
 
-# Тести та покриття
+
 .pytest_cache/
 .tox/
 .nox/
-.coverage
+.coveragerc
 .cache
 htmlcov/
 nosetests.xml
