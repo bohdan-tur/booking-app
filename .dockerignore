@@ -30,7 +30,7 @@ bin/
 .pytest_cache/
 .tox/
 .nox/
-.coverage
+.coveragerc
 .cache
 htmlcov/
 nosetests.xml
