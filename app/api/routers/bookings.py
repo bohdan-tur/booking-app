@@ -11,6 +11,7 @@ from app.models.role_model import Role
 from app.models.user_model import Users
 from app.schemas.booking_schema import BookingOut, BookingUpdate
 from app.services.booking_check import create_booking_if_available
+from app.workers.tasks import process_booking_creation, process_booking_cancellation
 
 router = APIRouter(tags=["Bookings"])
 
@@ -29,6 +30,14 @@ async def book_room(
         user_id=user.id,
         start_time=start_time,
         end_time=end_time,
+    )
+
+    process_booking_creation.delay(
+        booking_id=booking.id,
+        user_id=booking.user_id,
+        room_id=booking.room_id,
+        start_time=booking.start_time,
+        end_time=booking.end_time,
     )
 
     return booking
@@ -110,7 +119,7 @@ async def cancel_booking(
     booking_to_delete = await db.execute(
         delete(Bookings).where(Bookings.id == id).returning(Bookings)
     )
-    result = booking_to_delete.scalars().first()
+    result = booking_to_delete.scalar_one_or_none()
 
     if result is None:
         raise HTTPException(
@@ -127,3 +136,5 @@ async def cancel_booking(
         )
 
     await db.commit()
+
+    process_booking_cancellation.delay(booking_id=result.id, user_id=result.user_id)
