@@ -6,6 +6,10 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str
     REDIS_URL: str
 
+    ADMIN_DEFAULT_PASSWORD: str
+    MANAGER_DEFAULT_PASSWORD: str
+    USER_DEFAULT_PASSWORD: str
+
     SECRET_KEY: str
     REFRESH_SECRET_KEY: str
     ALGORITHM: str

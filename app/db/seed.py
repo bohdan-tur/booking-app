@@ -2,12 +2,10 @@ import asyncio
 from sqlalchemy import select
 from passlib.context import CryptContext
 
-
 from app.db.database import AsyncSessionLocal
-
 from app.models.role_model import Role
 from app.models.user_model import Users
-
+from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -17,63 +15,41 @@ def get_password_hash(password: str) -> str:
 
 
 async def seed_data():
-
     async with AsyncSessionLocal() as session:
         print("⏳ Starting database seeding...")
 
-        # Admin user
-        result = await session.execute(select(Users).where(Users.username == "admin"))
-        admin_user = result.scalar_one_or_none()
+        users_to_seed = [
+            ("admin", "admin@booking.com", Role.admin, settings.ADMIN_DEFAULT_PASSWORD),
+            (
+                "manager",
+                "manager@booking.com",
+                Role.manager,
+                settings.MANAGER_DEFAULT_PASSWORD,
+            ),
+            ("user", "user@booking.com", Role.user, settings.USER_DEFAULT_PASSWORD),
+        ]
 
-        if not admin_user:
-            print("Creating user 'admin'...")
-            admin_user = Users(
-                username="admin",
-                email="admin@booking.com",
-                password_hash=get_password_hash("AdminSecure123!"),
-                role=Role.admin,
-                is_active=True,
+        for username, email, role, password in users_to_seed:
+            result = await session.execute(
+                select(Users).where(Users.username == username)
             )
-            session.add(admin_user)
-        else:
-            print("✅ User 'admin' already exists.")
+            user = result.scalar_one_or_none()
 
-        # Manager user
-        result = await session.execute(select(Users).where(Users.username == "manager"))
-        manager_user = result.scalar_one_or_none()
-
-        if not manager_user:
-            print("Creating user 'manager'...")
-            manager_user = Users(
-                username="manager",
-                email="manager@booking.com",
-                password_hash=get_password_hash("ManagerSecure456!"),
-                role=Role.manager,
-                is_active=True,
-            )
-            session.add(manager_user)
-        else:
-            print("✅ User 'manager' already exists.")
-
-        # Regular user
-        result = await session.execute(select(Users).where(Users.username == "user"))
-        regular_user = result.scalar_one_or_none()
-
-        if not regular_user:
-            print("Creating user 'user'...")
-            regular_user = Users(
-                username="user",
-                email="user@booking.com",
-                password_hash=get_password_hash("UserSecure789!"),
-                role=Role.user,
-                is_active=True,
-            )
-            session.add(regular_user)
-        else:
-            print("✅ User 'user' already exists.")
+            if not user:
+                print(f"Creating user '{username}'...")
+                new_user = Users(
+                    username=username,
+                    email=email,
+                    password_hash=get_password_hash(password),
+                    role=role,
+                    is_active=True,
+                )
+                session.add(new_user)
+            else:
+                print(f"✅ User '{username}' already exists.")
 
         await session.commit()
-        print("🎉 Database successfully seeded! You can now login in Swagger.")
+        print("🎉 Database successfully seeded!")
 
 
 if __name__ == "__main__":
