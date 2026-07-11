@@ -4,21 +4,21 @@ A modern RESTful hotel booking API built with FastAPI, PostgreSQL, Redis, and Ce
 
 ## Table of Contents 📚
 
-- [Overview](#-overview)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Project Structure](#-project-structure)
-- [Environment Variables](#-environment-variables)
-- [Docker Services](#-docker-services)
-- [Getting Started](#-getting-started)
-- [API Usage Example](#-api-usage-example)
-- [Testing](#-testing)
-- [Background Tasks](#-background-tasks)
-- [Authentication](#-authentication)
-- [Author](#-author)
+- [Overview](#overview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [Docker Services](#docker-services)
+- [Getting Started](#getting-started)
+- [API Usage Example](#api-usage-example)
+- [Testing](#testing)
+- [Background Tasks](#background-tasks)
+- [Authentication](#authentication)
+- [Author](#author)
 
-## Overview 📋
+## Overview
 
 Booking App is a backend application for hotel room booking. It is designed as an asynchronous API service with a modular structure, background task processing, and isolated test infrastructure.
 
@@ -32,7 +32,7 @@ The project includes:
 - isolated Docker-based test setup
 - Flower monitoring for Celery tasks
 
-## Features ✨
+## Features
 
 **JWT Authentication 🔐**
 
@@ -74,7 +74,7 @@ The project includes:
 - separate containers for API, database, Redis, Celery, and tests
 - health checks for dependent services
 
-## Tech Stack 🛠
+## Tech Stack
 
 **Backend**
 
@@ -118,7 +118,7 @@ The project includes:
 - python-dotenv
 - watchfiles
 
-## Architecture 🏗
+## Architecture
 
 The project runs as a multi-container application and separates responsibilities across dedicated services.
 
@@ -162,7 +162,7 @@ celery worker / beat / flower
 
 This allows the application to wait for infrastructure readiness before starting the API.
 
-## Project Structure 📁
+## Project Structure
 
 ```
 booking-app/
@@ -238,7 +238,7 @@ booking-app/
 └── requirements.txt
 ```
 
-## Environment Variables ⚙️
+## Environment Variables
 
 Example configuration:
 
@@ -299,7 +299,7 @@ TESTING=false
 | `DEBUG` | Enables debug mode |
 | `TESTING` | Enables test mode |
 
-## Docker Services 🐳
+## Docker Services
 
 The application is designed to run using Docker Compose.
 
@@ -315,7 +315,7 @@ The application is designed to run using Docker Compose.
 | `flower` | Web UI for Celery monitoring |
 | `tests` | Runs the Pytest suite |
 
-## Getting Started 🚀
+## Getting Started
 
 **1. Clone the repository**
 
@@ -366,7 +366,7 @@ Once the application is running, the following endpoints should be available:
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
-## API Usage Example 💻
+## API Usage Example
 
 **Create a booking**
 
@@ -395,7 +395,7 @@ Response — 201 Created
 }
 ```
 
-## Testing 🧪
+## Testing
 
 The project uses a separate PostgreSQL test container to keep tests isolated from development data.
 
@@ -416,7 +416,7 @@ The `tests` service:
 
 This makes the test workflow reproducible and independent of the local machine environment.
 
-## Background Tasks 📬
+## Background Tasks
 
 Background processing is handled with Celery and Redis.
 
@@ -432,7 +432,7 @@ Typical use cases for background tasks include:
 - processing long-running jobs outside the request/response cycle
 - scheduling recurring tasks
 
-## Authentication 🔐
+## Authentication
 
 The application uses JWT-based authentication with separate settings for access and refresh tokens.
 
@@ -453,7 +453,7 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 
 Passwords are hashed using Argon2 via passlib.
 
-## Author 👨‍💻
+## Author
 
 **Bohdan Turevych**
 
