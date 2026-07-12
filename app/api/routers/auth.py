@@ -39,6 +39,12 @@ async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
     if user is None:
         raise credentials_exception
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated. Please contact support.",
+        )
+
     new_access_token = create_access_token(
         {"sub": str(user.id)}, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
@@ -96,6 +102,12 @@ async def user_login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated. Please contact support.",
         )
 
     if not verify_password(user_credentials.password, user.password_hash):
