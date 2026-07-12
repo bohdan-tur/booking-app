@@ -1,8 +1,8 @@
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException, Path
-from sqlalchemy import select, update, delete, and_, not_
+from fastapi import APIRouter, Depends, status, HTTPException, Path, Query
+from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -30,36 +30,87 @@ async def get_rooms_catalog(db: db_dependency):
 
 
 @router.get("/available", status_code=status.HTTP_200_OK)
-async def get_all_not_booked_rooms(db: db_dependency):
-    now = datetime.now(UTC).replace(tzinfo=None)
-    occupied_ids = select(Bookings.room_id).filter(
-        and_(Bookings.start_time <= now, Bookings.end_time >= now)
+async def get_all_not_booked_rooms(
+    db: db_dependency,
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+):
+    check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
+    check_end = end_time if end_time else check_start + timedelta(days=1)
+
+    booked_rooms_subq = (
+        select(
+            Bookings.room_id,
+            func.count(Bookings.id).label("booked_count"),
+        )
+        .where(
+            and_(
+                Bookings.start_time < check_end,
+                Bookings.end_time > check_start,
+            )
+        )
+        .group_by(Bookings.room_id)
+        .subquery()
     )
-    query = select(Rooms).filter(not_(Rooms.id.in_(occupied_ids)))
+
+    query = (
+        select(Rooms)
+        .outerjoin(booked_rooms_subq, Rooms.id == booked_rooms_subq.c.room_id)
+        .where(
+            (Rooms.quantity - func.coalesce(booked_rooms_subq.c.booked_count, 0)) > 0
+        )
+    )
+
     rooms = await db.execute(query)
     res = rooms.scalars().all()
 
     if not res:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="There aren't available rooms right now",
+            detail="There aren't available rooms for the specified period",
         )
+
     return res
 
 
 @router.get("/{room_id}/available", status_code=status.HTTP_200_OK)
-async def get_not_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
-    now = datetime.now(UTC).replace(tzinfo=None)
-    is_occupied = select(Bookings.room_id).filter(
-        and_(
-            Bookings.room_id == room_id,
-            Bookings.start_time <= now,
-            Bookings.end_time >= now,
+async def get_not_booked_room(
+    db: db_dependency,
+    room_id: Annotated[int, Path(gt=0)],
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+):
+    check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
+    check_end = end_time if end_time else check_start + timedelta(days=1)
+
+    booked_rooms_subq = (
+        select(
+            Bookings.room_id,
+            func.count(Bookings.id).label("booked_count"),
+        )
+        .where(
+            and_(
+                Bookings.room_id == room_id,
+                Bookings.start_time < check_end,
+                Bookings.end_time > check_start,
+            )
+        )
+        .group_by(Bookings.room_id)
+        .subquery()
+    )
+
+    query = (
+        select(Rooms)
+        .outerjoin(booked_rooms_subq, Rooms.id == booked_rooms_subq.c.room_id)
+        .where(
+            and_(
+                Rooms.id == room_id,
+                (Rooms.quantity - func.coalesce(booked_rooms_subq.c.booked_count, 0))
+                > 0,
+            )
         )
     )
-    query = select(Rooms).filter(
-        and_(Rooms.id == room_id, not_(Rooms.id.in_(is_occupied)))
-    )
+
     res = (await db.execute(query)).scalar()
 
     if not res:
@@ -67,49 +118,77 @@ async def get_not_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt
             status_code=status.HTTP_404_NOT_FOUND,
             detail="There isn't such room or it is booked",
         )
+
     return res
 
 
 @router.get(
-    "/{room_id}",
+    "/booked",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
 )
-async def get_booked_room(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
-    now = datetime.now(UTC).replace(tzinfo=None)
-    is_occupied = select(Bookings.room_id).filter(
-        and_(
-            Bookings.room_id == room_id,
-            Bookings.start_time <= now,
-            Bookings.end_time >= now,
+async def get_all_booked_rooms(
+    db: db_dependency,
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+):
+    check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
+    check_end = end_time if end_time else check_start + timedelta(days=1)
+
+    query = (
+        select(Rooms)
+        .join(
+            Bookings,
+            and_(
+                Bookings.room_id == Rooms.id,
+                Bookings.start_time < check_end,
+                Bookings.end_time > check_start,
+            ),
         )
+        .distinct()
     )
-    query = select(Rooms).filter(and_(Rooms.id == room_id, Rooms.id.in_(is_occupied)))
-    res = (await db.execute(query)).scalar()
-
-    if not res:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Room is not booked"
-        )
-    return res
-
-
-@router.get(
-    "/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)]
-)
-async def get_all_booked_rooms(db: db_dependency):
-    now = datetime.now(UTC).replace(tzinfo=None)
-    occupied_ids = select(Bookings.room_id).filter(
-        and_(Bookings.start_time <= now, Bookings.end_time >= now)
-    )
-    query = select(Rooms).filter(Rooms.id.in_(occupied_ids))
     rooms = await db.execute(query)
     res = rooms.scalars().all()
 
     if not res:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="There aren't booked rooms right now",
+            detail="There aren't booked rooms for the specified period",
+        )
+    return res
+
+
+@router.get(
+    "/booked/{room_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin_and_manager)],
+)
+async def get_booked_room(
+    db: db_dependency,
+    room_id: Annotated[int, Path(gt=0)],
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+):
+    check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
+    check_end = end_time if end_time else check_start + timedelta(days=1)
+
+    query = (
+        select(Rooms)
+        .join(
+            Bookings,
+            and_(
+                Bookings.room_id == Rooms.id,
+                Bookings.start_time < check_end,
+                Bookings.end_time > check_start,
+            ),
+        )
+        .filter(Rooms.id == room_id)
+    )
+    res = (await db.execute(query)).scalars().first()
+
+    if not res:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room is not booked"
         )
     return res
 
@@ -171,3 +250,4 @@ async def delete_room_by_id(db: db_dependency, room_id: Annotated[int, Path(gt=0
         )
 
     await db.commit()
+    return None
