@@ -1,12 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, update, delete
 
 from app.api.dependencies import DbSession
 from app.api.dependencies import allow_admin_and_manager, allow_admin, get_current_user
 from app.models.role_model import Role
 from app.models.user_model import Users
+from app.core.security import hash_password
+
 
 router = APIRouter(tags=["Users"])
 
@@ -18,10 +20,15 @@ async def get_my_info(user: Annotated[Users, Depends(get_current_user)]):
 
 @router.patch("/me/password", status_code=status.HTTP_200_OK)
 async def change_password(
-    db: DbSession, new_password: str, user: Annotated[Users, Depends(get_current_user)]
+    db: DbSession,
+    new_password: Annotated[str, Query(min_length=8)],
+    user: Annotated[Users, Depends(get_current_user)],
 ):
+    new_hashed_password = hash_password(new_password)
     await db.execute(
-        update(Users).filter(Users.id == user.id).values(password_hash=new_password)
+        update(Users)
+        .filter(Users.id == user.id)
+        .values(password_hash=new_hashed_password)
     )
     await db.commit()
     return {"status": "success"}
@@ -78,3 +85,45 @@ async def delete_user(db: DbSession, id: int):
         )
 
     await db.commit()
+
+
+@router.patch(
+    "/deactivate/{id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin)],
+)
+async def deactivate_user(db: DbSession, id: int):
+    result = await db.execute(
+        update(Users).filter(Users.id == id).values(is_active=False).returning(Users.id)
+    )
+
+    updated_user_id = result.scalar_one_or_none()
+
+    if not updated_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    await db.commit()
+    return {"status": "success", "message": f"User {id} deactivated"}
+
+
+@router.patch(
+    "/activate/{id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin)],
+)
+async def activate_user(db: DbSession, id: int):
+    result = await db.execute(
+        update(Users).filter(Users.id == id).values(is_active=True).returning(Users.id)
+    )
+
+    updated_user_id = result.scalar_one_or_none()
+
+    if not updated_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    await db.commit()
+    return {"status": "success", "message": f"User {id} activated"}
