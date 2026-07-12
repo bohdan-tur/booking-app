@@ -106,7 +106,7 @@ async def test_get_all_booked_rooms_success(
         user.id, room.id, now - timedelta(days=1), now + timedelta(days=1)
     )
 
-    response = await authenticated_client.get("/rooms/")
+    response = await authenticated_client.get("/rooms/booked")
     assert response.status_code == 200
     assert len(response.json()) >= 1
 
@@ -130,7 +130,7 @@ async def test_get_specific_booked_room_success(
         user.id, room.id, now - timedelta(days=1), now + timedelta(days=1)
     )
 
-    response = await authenticated_client.get(f"/rooms/{room.id}")
+    response = await authenticated_client.get(f"/rooms/booked/{room.id}")
     assert response.status_code == 200
     assert response.json()["id"] == room.id
 
@@ -191,12 +191,12 @@ async def test_get_all_booked_rooms_not_found(
     await db_session.execute(delete(Bookings))
     await db_session.commit()
 
-    response = await authenticated_client.get("/rooms/")
+    response = await authenticated_client.get("/rooms/booked")
     assert response.status_code == 404
 
 
 async def test_get_specific_booked_room_not_found(authenticated_client: AsyncClient):
-    response = await authenticated_client.get("/rooms/999999")
+    response = await authenticated_client.get("/rooms/booked/999999")
     assert response.status_code == 404
 
 
