@@ -1,42 +1,55 @@
 from datetime import datetime
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from app.api.dependencies import DbSession
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
+from sqlalchemy import and_, func
 
 
 async def create_booking_if_available(
-    db: DbSession, room_id: int, user_id: int, start_time: datetime, end_time: datetime
+    db: DbSession,
+    room_id: int,
+    user_id: int,
+    start_time: datetime,
+    end_time: datetime,
 ):
+    room = await db.execute(select(Rooms).where(Rooms.id == room_id))
+    target_room = room.scalar_one_or_none()
 
-    result = await db.execute(
-        select(Rooms).filter(Rooms.id == room_id).with_for_update()
-    )
-    room = result.scalars().first()
-
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-
-    overlap_query = await db.execute(
-        select(Bookings).filter(
-            Bookings.room_id == room_id,
-            Bookings.start_time < end_time,
-            Bookings.end_time > start_time,
-        )
-    )
-    existing_booking = overlap_query.scalars().first()
-
-    if existing_booking:
+    if not target_room:
         raise HTTPException(
-            status_code=400, detail="Room is already booked for these dates"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
         )
 
-    booking = Bookings(
-        room_id=room_id, start_time=start_time, end_time=end_time, user_id=user_id
+    overlapping_bookings = await db.execute(
+        select(func.count(Bookings.id)).where(
+            and_(
+                Bookings.room_id == room_id,
+                Bookings.start_time < end_time,
+                Bookings.end_time > start_time,
+            )
+        )
     )
-    db.add(booking)
-    await db.commit()
-    await db.refresh(booking)
 
-    return booking
+    booked_count = overlapping_bookings.scalar() or 0
+
+    if booked_count >= target_room.quantity:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Not enough rooms of this category available for the selected dates.",
+        )
+
+    new_booking = Bookings(
+        room_id=room_id,
+        user_id=user_id,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    db.add(new_booking)
+    await db.commit()
+    await db.refresh(new_booking)
+
+    return new_booking

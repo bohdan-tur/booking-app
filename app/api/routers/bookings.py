@@ -135,6 +135,9 @@ async def cancel_booking(
             detail="You can not cancel others booking",
         )
 
+    task_booking_id = result.id
+    task_user_id = result.user_id
+
     await db.commit()
 
-    process_booking_cancellation.delay(booking_id=result.id, user_id=result.user_id)
+    process_booking_cancellation.delay(booking_id=task_booking_id, user_id=task_user_id)
