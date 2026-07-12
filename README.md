@@ -277,27 +277,26 @@ POSTGRES_DB=booking_db
 # Application Settings
 DEBUG=true
 TESTING=false
+CORS_ORIGINS='["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"]'
 ```
 
 **Key variables**
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | Main PostgreSQL connection string |
-| `TEST_DATABASE_URL` | Database used during tests |
-| `REDIS_URL` | Redis connection string |
-| `SECRET_KEY` | Secret key for access tokens |
-| `REFRESH_SECRET_KEY` | Secret key for refresh tokens |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime |
-| `ADMIN_DEFAULT_PASSWORD` | Default password for the seeded admin user |
-| `MANAGER_DEFAULT_PASSWORD` | Default password for the seeded manager user |
-| `USER_DEFAULT_PASSWORD` | Default password for the seeded regular user |
-| `SMTP_HOST` / `SMTP_PORT` | SMTP server configuration |
-| `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials |
-| `EMAIL_FROM` | Default sender email |
-| `DEBUG` | Enables debug mode |
-| `TESTING` | Enables test mode |
+| Variable                      | Description                       |
+| ----------------------------- | --------------------------------- |
+| `DATABASE_URL`                | Main PostgreSQL connection string |
+| `TEST_DATABASE_URL`           | Database used during tests        |
+| `REDIS_URL`                   | Redis connection string           |
+| `SECRET_KEY`                  | Secret key for access tokens      |
+| `REFRESH_SECRET_KEY`          | Secret key for refresh tokens     |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime             |
+| `REFRESH_TOKEN_EXPIRE_DAYS`   | Refresh token lifetime            |
+| `SMTP_HOST` / `SMTP_PORT`     | SMTP server configuration         |
+| `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials                  |
+| `EMAIL_FROM`                  | Default sender email              |
+| `DEBUG`                       | Enables debug mode                |
+| `TESTING`                     | Enables test mode                 |
+| `CORS_ORIGINS`                | Allowed CORS origins              |
 
 ## Docker Services
 
@@ -358,23 +357,59 @@ docker compose ps
 
 Once the application is running, the following endpoints should be available:
 
-| Service | URL |
-|---|---|
-| Swagger UI | http://localhost:8001/docs |
-| ReDoc | http://localhost:8001/redoc |
-| Flower | http://localhost:5555 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
+| Service    | URL                           |
+| ---------- | ----------------------------- |
+| Swagger UI | `http://localhost:8001/docs`  |
+| ReDoc      | `http://localhost:8001/redoc` |
+| Flower     | `http://localhost:5555`       |
+| PostgreSQL | `localhost:5436`              |
+| Redis      | `localhost:6381`              |
 
-## API Usage Example
+## 💻 API Endpoints
+
+### Authentication (`/auth`)
+- `POST /auth/` - Refresh access token
+- `POST /auth/register` - Register new user
+- `POST /auth/login` - Login user
+
+### Users (`/users`)
+- `GET /users/me` - Get current user info
+- `PATCH /users/me/password` - Change password
+- `GET /users/` - Get all users (admin/manager)
+- `GET /users/{user_id}` - Get user by id (admin/manager)
+- `PATCH /users/{role}` - Change user role (admin)
+- `DELETE /users/remove/{id}` - Delete user (admin)
+
+### Rooms (`/rooms`)
+- `GET /rooms/all` - Get all rooms
+- `GET /rooms/available` - Get available rooms
+- `GET /rooms/{room_id}/available` - Check room availability
+- `GET /rooms/{room_id}` - Get booked room (admin/manager)
+- `GET /rooms/` - Get all booked rooms (admin/manager)
+- `POST /rooms/` - Add room (admin)
+- `PUT /rooms/{room_id}` - Update room (admin/manager)
+- `DELETE /rooms/{room_id}` - Delete room (admin)
+
+### Bookings (`/bookings`)
+- `POST /bookings/` - Create booking
+- `GET /bookings/` - Get all bookings (admin/manager)
+- `GET /bookings/{booking_id}` - Get single booking
+- `PATCH /bookings/{booking_id}` - Update booking (admin/manager)
+- `DELETE /bookings/{id}` - Cancel booking
+
+### System (`/system`)
+- `GET /system/live` - Liveness probe
+- `GET /system/ready` - Readiness probe
+
+### API Usage Example
 
 **Create a booking**
 
 Request
 
-```
-POST /api/v1/bookings/
+`POST /bookings/`
 
+```json
 {
   "room_id": 101,
   "start_time": "2026-08-15T14:00:00Z",
@@ -458,4 +493,4 @@ Passwords are hashed using Argon2 via passlib.
 **Bohdan Turevych**
 
 - GitHub: [@bohdan-tur](https://github.com/bohdan-tur)
-- LinkedIn: Bohdan Turevych
+- LinkedIn: [Bohdan Turevych](https://www.linkedin.com/in/bohdan-turevych)
