@@ -1,9 +1,36 @@
 from datetime import datetime
-
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
-class BookingBase(BaseModel):
+class BookingValidationBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def check_dates(self):
+        if getattr(self, "start_time", None) and getattr(self, "end_time", None):
+            if self.start_time >= self.end_time:
+                raise ValueError("Start time must be before end time")
+        return self
+
+
+class BookingCreate(BookingValidationBase):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "room_id": 1,
+                "start_time": "2024-07-15T14:00:00",
+                "end_time": "2024-07-20T11:00:00",
+            }
+        },
+    )
+
+    room_id: int
+    start_time: datetime
+    end_time: datetime
+
+
+class BookingUpdate(BookingValidationBase):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={
@@ -14,19 +41,8 @@ class BookingBase(BaseModel):
         },
     )
 
-    start_time: datetime
-    end_time: datetime
-
-    @model_validator(mode="after")
-    def check_dates(self):
-        if self.start_time is not None and self.end_time is not None:
-            if self.start_time >= self.end_time:
-                raise ValueError("Start time must be before end time")
-        return self
-
-
-class BookingCreate(BookingBase):
-    room_id: int
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 class BookingOut(BaseModel):
@@ -38,8 +54,3 @@ class BookingOut(BaseModel):
     start_time: datetime
     end_time: datetime
     status: str = Field(default="Booked")
-
-
-class BookingUpdate(BookingBase):
-    start_time: datetime | None = None
-    end_time: datetime | None = None
