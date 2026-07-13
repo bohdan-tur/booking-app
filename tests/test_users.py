@@ -41,7 +41,7 @@ async def test_get_user_by_id(authenticated_client: AsyncClient, db_session):
 async def test_change_password(authenticated_client: AsyncClient):
     password_param = {"new_password": "new_secure_password123"}
     response = await authenticated_client.patch(
-        "/users/me/password", params=password_param
+        "/users/me/password", json=password_param
     )
 
     assert response.status_code == 200
@@ -64,7 +64,7 @@ async def test_change_user_role(authenticated_client: AsyncClient, db_session):
     await db_session.commit()
 
     response = await authenticated_client.patch(
-        "/users/manager", params={"id": new_user_id, "new_role": "Manager"}
+        f"/users/{new_user_id}/role", json={"role": "Manager"}
     )
 
     assert response.status_code == 200
@@ -85,7 +85,7 @@ async def test_delete_user_by_admin(authenticated_client: AsyncClient, db_sessio
     ).scalar()
     await db_session.commit()
 
-    response = await authenticated_client.delete(f"/users/remove/{new_user_id}")
+    response = await authenticated_client.delete(f"/users/{new_user_id}")
     assert response.status_code == 204
 
     check = await authenticated_client.get(f"/users/{new_user_id}")
@@ -100,7 +100,7 @@ async def test_get_user_not_found(authenticated_client: AsyncClient):
 
 
 async def test_delete_user_not_found(authenticated_client: AsyncClient):
-    response = await authenticated_client.delete("/users/remove/999999")
+    response = await authenticated_client.delete("/users/999999")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found"
@@ -124,8 +124,8 @@ async def test_change_user_role_forbidden(client: AsyncClient, db_session):
     user_token = create_access_token({"sub": str(new_user_id)}, timedelta(minutes=5))
 
     response = await client.patch(
-        "/users/manager",
-        params={"id": 1},
+        "/users/1/role",
+        json={"role": "admin"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
 
@@ -150,7 +150,7 @@ async def test_delete_user_forbidden(client: AsyncClient, db_session):
     user_token = create_access_token({"sub": str(new_user_id)}, timedelta(minutes=5))
 
     response = await client.delete(
-        "/users/remove/1", headers={"Authorization": f"Bearer {user_token}"}
+        "/users/1", headers={"Authorization": f"Bearer {user_token}"}
     )
 
     assert response.status_code == 403

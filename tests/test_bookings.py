@@ -22,12 +22,12 @@ async def test_book_room_success(
     end = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=3)
 
     params = {
-        "room_id_to_book": room.id,
+        "room_id": room.id,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
     }
 
-    response = await authenticated_client.post("/bookings/", params=params)
+    response = await authenticated_client.post("/bookings/", json=params)
 
     assert response.status_code == 201
     data = response.json()
@@ -256,12 +256,12 @@ async def test_cancel_others_booking_forbidden(
     [
         (
             {"start_time": "2024-10-10T10:00:00", "end_time": "2024-10-12T10:00:00"},
-            "room_id_to_book",
+            "room_id",
         ),
-        ({"room_id_to_book": 1, "end_time": "2024-10-12T10:00:00"}, "start_time"),
+        ({"room_id": 1, "end_time": "2024-10-12T10:00:00"}, "start_time"),
         (
             {
-                "room_id_to_book": 1,
+                "room_id": 1,
                 "start_time": "not-a-date",
                 "end_time": "2024-10-12T10:00:00",
             },
@@ -272,7 +272,7 @@ async def test_cancel_others_booking_forbidden(
 async def test_book_room_validation_errors(
     authenticated_client: AsyncClient, invalid_params, expected_error_field
 ):
-    response = await authenticated_client.post("/bookings/", params=invalid_params)
+    response = await authenticated_client.post("/bookings/", json=invalid_params)
     assert response.status_code == 422
 
     errors = response.json()["detail"]

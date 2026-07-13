@@ -149,7 +149,7 @@ async def test_update_room_success(
         "amenities": "Mini-bar",
     }
 
-    response = await authenticated_client.put(f"/rooms/{room.id}", json=update_data)
+    response = await authenticated_client.patch(f"/rooms/{room.id}", json=update_data)
     assert response.status_code == 200
 
 
@@ -209,7 +209,7 @@ async def test_update_room_not_found(authenticated_client: AsyncClient):
         "quantity": 3,
         "amenities": "Mini-bar",
     }
-    response = await authenticated_client.put("/rooms/999999", json=update_data)
+    response = await authenticated_client.patch("/rooms/999999", json=update_data)
     assert response.status_code == 404
 
 
@@ -348,7 +348,7 @@ async def test_update_room_forbidden(
         "amenities": "Mini-bar",
     }
 
-    response = await client.put(
+    response = await client.patch(
         f"/rooms/{room.id}",
         json=update_data,
         headers={"Authorization": f"Bearer {user_token}"},
