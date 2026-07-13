@@ -6,6 +6,7 @@ from sqlalchemy import select, update, delete
 from app.api.dependencies import DbSession
 from app.api.dependencies import allow_admin_and_manager, allow_admin, get_current_user
 from app.models.user_model import Users
+from app.models.role_model import Role
 from app.core.security import hash_password
 from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
 
@@ -69,6 +70,20 @@ async def get_user_info(db: DbSession, user_id: int):
     dependencies=[Depends(allow_admin)],
 )
 async def change_role(role_data: UserRoleUpdate, id: int, db: DbSession):
+    user_to_change = await db.execute(select(Users).filter(Users.id == id))
+    user = user_to_change.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    if user.role == Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot change admin role",
+        )
+
     await db.execute(update(Users).filter(Users.id == id).values(role=role_data.role))
     await db.commit()
     return {"status": "success"}
@@ -80,16 +95,21 @@ async def change_role(role_data: UserRoleUpdate, id: int, db: DbSession):
     dependencies=[Depends(allow_admin)],
 )
 async def delete_user(db: DbSession, id: int):
-    user_to_delete = await db.execute(
-        delete(Users).filter(Users.id == id).returning(Users.id)
-    )
-    result = user_to_delete.scalars().first()
+    user_to_delete = await db.execute(select(Users).filter(Users.id == id))
+    user = user_to_delete.scalar_one_or_none()
 
-    if result is None:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
+    if user.role == Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete admin",
+        )
+
+    await db.execute(delete(Users).filter(Users.id == id).returning(Users.id))
     await db.commit()
 
 
@@ -107,10 +127,10 @@ async def deactivate_user(db: DbSession, id: int):
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    if user.is_superuser:
+    if user.role == Role.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot deactivate superuser",
+            detail="Cannot deactivate admin",
         )
 
     result = await db.execute(
@@ -142,10 +162,10 @@ async def activate_user(db: DbSession, id: int):
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    if user.is_superuser:
+    if user.role == Role.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot activate/deactivate superuser",
+            detail="Cannot activate admin",
         )
 
     result = await db.execute(
