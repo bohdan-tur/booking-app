@@ -4,7 +4,15 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 class BookingBase(BaseModel):
-    model_config = ConfigDict(extra="forbid", from_attributes=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "start_time": "2024-07-15T14:00:00",
+                "end_time": "2024-07-20T11:00:00",
+            }
+        },
+    )
 
     start_time: datetime
     end_time: datetime
@@ -21,10 +29,14 @@ class BookingCreate(BookingBase):
     room_id: int
 
 
-class BookingOut(BookingBase):
+class BookingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     room_id: int
     user_id: int
+    start_time: datetime
+    end_time: datetime
     status: str = Field(default="Booked")
 
 

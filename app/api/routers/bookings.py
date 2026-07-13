@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, delete, update
@@ -9,7 +8,7 @@ from app.api.dependencies import get_current_user, allow_admin_and_manager
 from app.models.booking_model import Bookings
 from app.models.role_model import Role
 from app.models.user_model import Users
-from app.schemas.booking_schema import BookingOut, BookingUpdate
+from app.schemas.booking_schema import BookingOut, BookingUpdate, BookingCreate
 from app.services.booking_check import create_booking_if_available
 from app.workers.tasks import process_booking_creation, process_booking_cancellation
 
@@ -18,18 +17,14 @@ router = APIRouter(tags=["Bookings"])
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=BookingOut)
 async def book_room(
-    room_id_to_book: int,
-    start_time: datetime,
-    end_time: datetime,
+    booking_data: BookingCreate,
     db: DbSession,
     user: Annotated[Users, Depends(get_current_user)],
 ):
     booking = await create_booking_if_available(
         db=db,
-        room_id=room_id_to_book,
+        booking_data=booking_data,
         user_id=user.id,
-        start_time=start_time,
-        end_time=end_time,
     )
 
     process_booking_creation.delay(
@@ -44,7 +39,10 @@ async def book_room(
 
 
 @router.get(
-    "/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)]
+    "/",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin_and_manager)],
+    response_model=List[BookingOut],
 )
 async def get_all_bookings(db: DbSession):
     bookings = await db.execute(select(Bookings))
@@ -58,7 +56,7 @@ async def get_all_bookings(db: DbSession):
     return result
 
 
-@router.get("/{booking_id}", status_code=status.HTTP_200_OK)
+@router.get("/{booking_id}", status_code=status.HTTP_200_OK, response_model=BookingOut)
 async def get_single_booking(
     booking_id: int,
     db: DbSession,
@@ -92,13 +90,18 @@ async def get_single_booking(
 async def update_booking(
     booking_id: int, booking_to_update: BookingUpdate, db: DbSession
 ):
+    update_data = booking_to_update.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields provided for update",
+        )
+
     updated_booking = await db.execute(
         update(Bookings)
         .filter(Bookings.id == booking_id)
-        .values(
-            start_time=booking_to_update.start_time,
-            end_time=booking_to_update.end_time,
-        )
+        .values(**update_data)
         .returning(Bookings.id)
     )
 
