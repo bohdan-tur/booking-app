@@ -1,20 +1,18 @@
-from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from app.api.dependencies import DbSession
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
+from app.schemas.booking_schema import BookingCreate
 from sqlalchemy import and_, func
 
 
 async def create_booking_if_available(
     db: DbSession,
-    room_id: int,
+    booking_data: BookingCreate,
     user_id: int,
-    start_time: datetime,
-    end_time: datetime,
 ):
-    room = await db.execute(select(Rooms).where(Rooms.id == room_id))
+    room = await db.execute(select(Rooms).where(Rooms.id == booking_data.room_id))
     target_room = room.scalar_one_or_none()
 
     if not target_room:
@@ -26,9 +24,9 @@ async def create_booking_if_available(
     overlapping_bookings = await db.execute(
         select(func.count(Bookings.id)).where(
             and_(
-                Bookings.room_id == room_id,
-                Bookings.start_time < end_time,
-                Bookings.end_time > start_time,
+                Bookings.room_id == booking_data.room_id,
+                Bookings.start_time < booking_data.end_time,
+                Bookings.end_time > booking_data.start_time,
             )
         )
     )
@@ -42,10 +40,10 @@ async def create_booking_if_available(
         )
 
     new_booking = Bookings(
-        room_id=room_id,
+        room_id=booking_data.room_id,
         user_id=user_id,
-        start_time=start_time,
-        end_time=end_time,
+        start_time=booking_data.start_time,
+        end_time=booking_data.end_time,
     )
 
     db.add(new_booking)

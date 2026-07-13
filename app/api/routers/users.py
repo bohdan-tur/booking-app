@@ -1,19 +1,19 @@
-from typing import Annotated
+from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update, delete
 
 from app.api.dependencies import DbSession
 from app.api.dependencies import allow_admin_and_manager, allow_admin, get_current_user
-from app.models.role_model import Role
 from app.models.user_model import Users
 from app.core.security import hash_password
+from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
 
 
 router = APIRouter(tags=["Users"])
 
 
-@router.get("/me", status_code=status.HTTP_200_OK)
+@router.get("/me", status_code=status.HTTP_200_OK, response_model=UserOut)
 async def get_my_info(user: Annotated[Users, Depends(get_current_user)]):
     return user
 
@@ -21,10 +21,10 @@ async def get_my_info(user: Annotated[Users, Depends(get_current_user)]):
 @router.patch("/me/password", status_code=status.HTTP_200_OK)
 async def change_password(
     db: DbSession,
-    new_password: Annotated[str, Query(min_length=8)],
+    password_data: UserPasswordUpdate,
     user: Annotated[Users, Depends(get_current_user)],
 ):
-    new_hashed_password = hash_password(new_password)
+    new_hashed_password = hash_password(password_data.new_password)
     await db.execute(
         update(Users)
         .filter(Users.id == user.id)
@@ -35,7 +35,10 @@ async def change_password(
 
 
 @router.get(
-    "/", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin_and_manager)]
+    "/",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin_and_manager)],
+    response_model=List[UserOut],
 )
 async def get_all_users(db: DbSession):
     query_result = await db.execute(select(Users))
@@ -47,6 +50,7 @@ async def get_all_users(db: DbSession):
     "/{user_id}",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
+    response_model=UserOut,
 )
 async def get_user_info(db: DbSession, user_id: int):
     user = await db.execute(select(Users).filter(Users.id == user_id))
@@ -60,16 +64,18 @@ async def get_user_info(db: DbSession, user_id: int):
 
 
 @router.patch(
-    "/{role}", status_code=status.HTTP_200_OK, dependencies=[Depends(allow_admin)]
+    "/{id}/role",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(allow_admin)],
 )
-async def change_role(new_role: Role, id: int, db: DbSession):
-    await db.execute(update(Users).filter(Users.id == id).values(role=new_role))
+async def change_role(role_data: UserRoleUpdate, id: int, db: DbSession):
+    await db.execute(update(Users).filter(Users.id == id).values(role=role_data.role))
     await db.commit()
     return {"status": "success"}
 
 
 @router.delete(
-    "/remove/{id}",
+    "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(allow_admin)],
 )
@@ -93,6 +99,20 @@ async def delete_user(db: DbSession, id: int):
     dependencies=[Depends(allow_admin)],
 )
 async def deactivate_user(db: DbSession, id: int):
+    user_to_deactivate = await db.execute(select(Users).filter(Users.id == id))
+    user = user_to_deactivate.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    if user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot deactivate superuser",
+        )
+
     result = await db.execute(
         update(Users).filter(Users.id == id).values(is_active=False).returning(Users.id)
     )
@@ -114,6 +134,20 @@ async def deactivate_user(db: DbSession, id: int):
     dependencies=[Depends(allow_admin)],
 )
 async def activate_user(db: DbSession, id: int):
+    user_to_activate = await db.execute(select(Users).filter(Users.id == id))
+    user = user_to_activate.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    if user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot activate/deactivate superuser",
+        )
+
     result = await db.execute(
         update(Users).filter(Users.id == id).values(is_active=True).returning(Users.id)
     )

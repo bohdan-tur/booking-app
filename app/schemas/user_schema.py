@@ -19,3 +19,11 @@ class UserOut(BaseModel):
     email: EmailStr
     username: str
     role: str
+
+
+class UserPasswordUpdate(BaseModel):
+    new_password: str = Field(min_length=8)
+
+
+class UserRoleUpdate(BaseModel):
+    role: str

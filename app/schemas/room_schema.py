@@ -32,3 +32,15 @@ class RoomCreate(RoomBase):
 
 class RoomOut(RoomBase):
     id: int
+
+
+class RoomUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=3, max_length=100)
+    description: str | None = None
+    price: int | None = Field(default=None, gt=0)
+    capacity: int | None = Field(default=None, ge=1, le=10)
+    amenities: str | None = None
+    quantity: int | None = Field(default=None, ge=0)
+    location: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
