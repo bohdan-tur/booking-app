@@ -13,7 +13,7 @@ from app.workers.tasks import (
 FIXED_NOW = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_confirmation_email")
 def test_process_booking_creation_success(mock_send_email, mock_session_local):
     mock_session = AsyncMock()
@@ -34,7 +34,7 @@ def test_process_booking_creation_success(mock_send_email, mock_session_local):
     mock_send_email.assert_called_once()
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 def test_process_booking_creation_not_found(mock_session_local):
     mock_session = AsyncMock()
     mock_session_local.return_value.__aenter__.return_value = mock_session
@@ -48,7 +48,7 @@ def test_process_booking_creation_not_found(mock_session_local):
     assert result == {"status": "error", "message": "Booking not found"}
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_cancellation_email")
 def test_process_booking_cancellation_success(mock_send_email, mock_session_local):
     mock_session = AsyncMock()
@@ -66,7 +66,7 @@ def test_process_booking_cancellation_success(mock_send_email, mock_session_loca
     mock_send_email.assert_called_once()
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 def test_update_expired_bookings(mock_session_local):
     mock_session = AsyncMock()
     mock_session_local.return_value.__aenter__.return_value = mock_session
@@ -81,7 +81,7 @@ def test_update_expired_bookings(mock_session_local):
     mock_session.commit.assert_called_once()
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_reminder_email")
 def test_send_daily_reminders(mock_send_email, mock_session_local):
     mock_session = AsyncMock()
@@ -102,7 +102,7 @@ def test_send_daily_reminders(mock_send_email, mock_session_local):
     mock_send_email.assert_called_once()
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 def test_cleanup_old_bookings(mock_session_local):
     mock_session = AsyncMock()
     mock_session_local.return_value.__aenter__.return_value = mock_session
@@ -117,7 +117,7 @@ def test_cleanup_old_bookings(mock_session_local):
     mock_session.commit.assert_called_once()
 
 
-@patch("app.workers.tasks.AsyncSessionLocal")
+@patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_email")
 def test_generate_daily_statistics(mock_send_email, mock_session_local):
     mock_session = AsyncMock()
