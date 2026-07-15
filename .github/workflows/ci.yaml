@@ -30,9 +30,9 @@ jobs:
           echo "ALGORITHM=HS256" >> .env
           echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
           echo "REFRESH_SECRET_KEY=${{ secrets.REFRESH_SECRET_KEY }}" >> .env
-          echo ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
-          echo MANAGER_DEFAULT_PASSWORD: ${{ secrets.MANAGER_DEFAULT_PASSWORD }}
-          echo USER_DEFAULT_PASSWORD: ${{ secrets.USER_DEFAULT_PASSWORD }}
+          echo "ADMIN_DEFAULT_PASSWORD=${{ secrets.ADMIN_DEFAULT_PASSWORD }}" >> .env
+          echo "MANAGER_DEFAULT_PASSWORD=${{ secrets.MANAGER_DEFAULT_PASSWORD }}" >> .env
+          echo "USER_DEFAULT_PASSWORD=${{ secrets.USER_DEFAULT_PASSWORD }}" >> .env
           echo "ACCESS_TOKEN_EXPIRE_MINUTES=15" >> .env
           echo "REFRESH_TOKEN_EXPIRE_DAYS=7" >> .env
           echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env

@@ -1,17 +1,11 @@
 import asyncio
 from sqlalchemy import select
-from passlib.context import CryptContext
 
 from app.db.database import AsyncSessionLocal
 from app.models.role_model import Role
 from app.models.user_model import Users
 from app.core.config import settings
-
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+from app.core.security import hash_password
 
 
 async def seed_data():
@@ -40,7 +34,7 @@ async def seed_data():
                 new_user = Users(
                     username=username,
                     email=email,
-                    password_hash=get_password_hash(password),
+                    password_hash=hash_password(password),
                     role=role,
                     is_active=True,
                 )
