@@ -1,4 +1,4 @@
-from typing import Annotated, List
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, delete, update
@@ -20,7 +20,7 @@ async def book_room(
     booking_data: BookingCreate,
     db: DbSession,
     user: Annotated[Users, Depends(get_current_user)],
-):
+) -> BookingOut:
     booking = await create_booking_if_available(
         db=db,
         booking_data=booking_data,
@@ -42,9 +42,9 @@ async def book_room(
     "/",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
-    response_model=List[BookingOut],
+    response_model=list[BookingOut],
 )
-async def get_all_bookings(db: DbSession):
+async def get_all_bookings(db: DbSession) -> list[BookingOut]:
     bookings = await db.execute(select(Bookings))
     result = bookings.scalars().all()
 
@@ -61,7 +61,7 @@ async def get_single_booking(
     booking_id: int,
     db: DbSession,
     current_user: Annotated[Users, Depends(get_current_user)],
-):
+) -> BookingOut:
     bookings = await db.execute(select(Bookings).filter(Bookings.id == booking_id))
     result = bookings.scalars().first()
 
@@ -89,7 +89,7 @@ async def get_single_booking(
 )
 async def update_booking(
     booking_id: int, booking_to_update: BookingUpdate, db: DbSession
-):
+) -> dict[str, str]:
     update_data = booking_to_update.model_dump(exclude_unset=True)
 
     if not update_data:
@@ -115,12 +115,14 @@ async def update_booking(
     return {"status": "success"}
 
 
-@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_booking(
-    id: int, db: DbSession, current_user: Annotated[Users, Depends(get_current_user)]
-):
+    booking_id: int,
+    db: DbSession,
+    current_user: Annotated[Users, Depends(get_current_user)],
+) -> None:
     booking_to_delete = await db.execute(
-        delete(Bookings).where(Bookings.id == id).returning(Bookings)
+        delete(Bookings).where(Bookings.id == booking_id).returning(Bookings)
     )
     result = booking_to_delete.scalar_one_or_none()
 

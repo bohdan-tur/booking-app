@@ -11,7 +11,7 @@ async def create_booking_if_available(
     db: DbSession,
     booking_data: BookingCreate,
     user_id: int,
-):
+) -> Bookings:
     room = await db.execute(select(Rooms).where(Rooms.id == booking_data.room_id))
     target_room = room.scalar_one_or_none()
 

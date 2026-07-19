@@ -23,13 +23,13 @@ class Users(Base):
     bookings: Mapped[list["Bookings"]] = relationship("Bookings", back_populates="user")
 
     @validates("email")
-    def validate_email(self, key, email):
+    def validate_email(self, key: str, email: str) -> str:
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             raise ValueError("Invalid email format")
         return email.lower()
 
     @validates("username")
-    def validate_username(self, key, username):
+    def validate_username(self, key: str, username: str) -> str:
         if len(username) < 3:
             raise ValueError("Username must be at least 3 characters long")
         if not re.match(r"^[a-zA-Z0-9_]+$", username):

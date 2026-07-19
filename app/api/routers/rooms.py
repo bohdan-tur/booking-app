@@ -1,23 +1,19 @@
 from datetime import datetime, UTC, timedelta
-from typing import Annotated, List
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException, Path, Query
 from sqlalchemy import select, update, delete, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import get_db
-from app.api.dependencies import allow_admin, allow_admin_and_manager
+from app.api.dependencies import allow_admin, allow_admin_and_manager, DbSession
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
 from app.schemas.room_schema import RoomCreate, RoomOut, RoomUpdate
 
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
-
 router = APIRouter(tags=["Rooms"])
 
 
-@router.get("/all", status_code=status.HTTP_200_OK, response_model=List[RoomOut])
-async def get_rooms_catalog(db: db_dependency):
+@router.get("/all", status_code=status.HTTP_200_OK, response_model=list[RoomOut])
+async def get_rooms_catalog(db: DbSession) -> list[RoomOut]:
     query = select(Rooms)
     rooms = await db.execute(query)
     res = rooms.scalars().all()
@@ -29,12 +25,12 @@ async def get_rooms_catalog(db: db_dependency):
     return res
 
 
-@router.get("/available", status_code=status.HTTP_200_OK, response_model=List[RoomOut])
+@router.get("/available", status_code=status.HTTP_200_OK, response_model=list[RoomOut])
 async def get_all_not_booked_rooms(
-    db: db_dependency,
+    db: DbSession,
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-):
+) -> list[RoomOut]:
     check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
     check_end = end_time if end_time else check_start + timedelta(days=1)
 
@@ -77,11 +73,11 @@ async def get_all_not_booked_rooms(
     "/{room_id}/available", status_code=status.HTTP_200_OK, response_model=RoomOut
 )
 async def get_not_booked_room(
-    db: db_dependency,
+    db: DbSession,
     room_id: Annotated[int, Path(gt=0)],
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-):
+) -> RoomOut:
     check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
     check_end = end_time if end_time else check_start + timedelta(days=1)
 
@@ -128,13 +124,13 @@ async def get_not_booked_room(
     "/booked",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
-    response_model=List[RoomOut],
+    response_model=list[RoomOut],
 )
 async def get_all_booked_rooms(
-    db: db_dependency,
+    db: DbSession,
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-):
+) -> list[RoomOut]:
     check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
     check_end = end_time if end_time else check_start + timedelta(days=1)
 
@@ -168,11 +164,11 @@ async def get_all_booked_rooms(
     response_model=RoomOut,
 )
 async def get_booked_room(
-    db: db_dependency,
+    db: DbSession,
     room_id: Annotated[int, Path(gt=0)],
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
-):
+) -> RoomOut:
     check_start = start_time if start_time else datetime.now(UTC).replace(tzinfo=None)
     check_end = end_time if end_time else check_start + timedelta(days=1)
 
@@ -203,7 +199,7 @@ async def get_booked_room(
     response_model=RoomOut,
     dependencies=[Depends(allow_admin)],
 )
-async def add_room(room_data: RoomCreate, db: db_dependency):
+async def add_room(room_data: RoomCreate, db: DbSession) -> RoomOut:
     new_room = Rooms(**room_data.model_dump())
     db.add(new_room)
     await db.commit()
@@ -217,8 +213,8 @@ async def add_room(room_data: RoomCreate, db: db_dependency):
     dependencies=[Depends(allow_admin_and_manager)],
 )
 async def change_room(
-    db: db_dependency, room_id: Annotated[int, Path(gt=0)], room_data: RoomUpdate
-):
+    db: DbSession, room_id: Annotated[int, Path(gt=0)], room_data: RoomUpdate
+) -> dict[str, str]:
     update_data = room_data.model_dump(exclude_unset=True)
 
     if not update_data:
@@ -249,7 +245,7 @@ async def change_room(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(allow_admin)],
 )
-async def delete_room_by_id(db: db_dependency, room_id: Annotated[int, Path(gt=0)]):
+async def delete_room_by_id(db: DbSession, room_id: Annotated[int, Path(gt=0)]) -> None:
     deleted_room = await db.execute(
         delete(Rooms).filter(Rooms.id == room_id).returning(Rooms.id)
     )

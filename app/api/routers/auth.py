@@ -21,7 +21,9 @@ router = APIRouter(tags=["Auth"])
 
 
 @router.post("/", status_code=status.HTTP_200_OK)
-async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
+async def get_refresh_token(
+    db: DbSession, token_data: RefreshToken_Schema
+) -> dict[str, str]:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate refresh token",
@@ -58,7 +60,7 @@ async def get_refresh_token(db: DbSession, token_data: RefreshToken_Schema):
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserOut)
-async def add_user(user_data: UserCreate, db: DbSession):
+async def add_user(user_data: UserCreate, db: DbSession) -> UserOut:
     query_result = await db.execute(
         select(Users).filter(Users.email == user_data.email)
     )
@@ -86,7 +88,7 @@ async def add_user(user_data: UserCreate, db: DbSession):
 @router.post("/login", status_code=status.HTTP_200_OK)
 async def user_login(
     user_credentials: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession
-):
+) -> dict[str, str]:
     query_result = await db.execute(
         select(Users).filter(
             or_(

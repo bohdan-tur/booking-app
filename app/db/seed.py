@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.security import hash_password
 
 
-async def seed_data():
+async def seed_data() -> None:
     async with AsyncSessionLocal() as session:
         print("⏳ Starting database seeding...")
 
