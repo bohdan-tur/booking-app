@@ -5,8 +5,30 @@ from app.core.config import settings
 from app.core.logger import logger
 import time
 from fastapi import Request
+from contextlib import asynccontextmanager
+from app.db.seed import seed_data
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    logger.info("🚀 Starting API and initializing resources...")
+
+    try:
+        await seed_data()
+        logger.info("✅ Database seeded successfully.")
+    except Exception as e:
+        logger.error(f"❌ Error during database seeding: {e}")
+
+    yield
+
+    logger.info("🛑 Shutting down API and cleaning up resources...")
+
+
+app = FastAPI(
+    title="Booking API",
+    lifespan=lifespan,
+)
 
 
 app.add_middleware(

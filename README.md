@@ -353,6 +353,13 @@ This command will build and start:
 docker compose ps
 ```
 
+**Note:** On first startup, the API automatically seeds the database with default users:
+- Admin: `admin@booking.com` / `your_secure_admin_password`
+- Manager: `manager@booking.com` / `your_secure_manager_password`
+- User: `user@booking.com` / `your_secure_user_password`
+
+You can use these credentials in Swagger UI to test admin/manager-protected endpoints.
+
 **Available Services 🌐**
 
 Once the application is running, the following endpoints should be available:
@@ -377,17 +384,19 @@ Once the application is running, the following endpoints should be available:
 - `PATCH /users/me/password` - Change password
 - `GET /users/` - Get all users (admin/manager)
 - `GET /users/{user_id}` - Get user by id (admin/manager)
-- `PATCH /users/{role}` - Change user role (admin)
-- `DELETE /users/remove/{id}` - Delete user (admin)
+- `PATCH /users/{user_id}/role` - Change user role (admin)
+- `DELETE /users/{user_id}` - Delete user (admin)
+- `PATCH /users/deactivate/{user_id}` - Deactivate user (admin)
+- `PATCH /users/activate/{user_id}` - Activate user (admin)
 
 ### Rooms (`/rooms`)
 - `GET /rooms/all` - Get all rooms
 - `GET /rooms/available` - Get available rooms
 - `GET /rooms/{room_id}/available` - Check room availability
-- `GET /rooms/{room_id}` - Get booked room (admin/manager)
-- `GET /rooms/` - Get all booked rooms (admin/manager)
+- `GET /rooms/booked` - Get all booked rooms (admin/manager)
+- `GET /rooms/booked/{room_id}` - Get booked room (admin/manager)
 - `POST /rooms/` - Add room (admin)
-- `PUT /rooms/{room_id}` - Update room (admin/manager)
+- `PATCH /rooms/{room_id}` - Update room (admin/manager)
 - `DELETE /rooms/{room_id}` - Delete room (admin)
 
 ### Bookings (`/bookings`)
@@ -395,7 +404,7 @@ Once the application is running, the following endpoints should be available:
 - `GET /bookings/` - Get all bookings (admin/manager)
 - `GET /bookings/{booking_id}` - Get single booking
 - `PATCH /bookings/{booking_id}` - Update booking (admin/manager)
-- `DELETE /bookings/{id}` - Cancel booking
+- `DELETE /bookings/{booking_id}` - Cancel booking
 
 ### System (`/system`)
 - `GET /system/live` - Liveness probe
