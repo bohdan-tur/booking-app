@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from app.api.routers import auth, users, rooms, bookings, system
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -19,7 +19,7 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests(request: Request, call_next) -> Response:
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
