@@ -154,3 +154,103 @@ async def test_delete_user_forbidden(client: AsyncClient, db_session):
     )
 
     assert response.status_code == 403
+
+
+async def test_deactivate_user_success(authenticated_client: AsyncClient, db_session):
+    new_user_id = (
+        await db_session.execute(
+            insert(Users)
+            .values(
+                username="user_to_deact",
+                email="deact@booking.com",
+                password_hash="fakehash",
+                role="user",
+                is_active=True,
+            )
+            .returning(Users.id)
+        )
+    ).scalar()
+    await db_session.commit()
+
+    response = await authenticated_client.patch(f"/users/deactivate/{new_user_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["message"] == f"User {new_user_id} deactivated"
+
+
+async def test_deactivate_admin_forbidden(
+    authenticated_client: AsyncClient, db_session
+):
+    admin_id = (
+        await db_session.execute(
+            insert(Users)
+            .values(
+                username="admin_to_deact",
+                email="admin_deact@booking.com",
+                password_hash="fakehash",
+                role="admin",
+                is_active=True,
+            )
+            .returning(Users.id)
+        )
+    ).scalar()
+    await db_session.commit()
+
+    response = await authenticated_client.patch(f"/users/deactivate/{admin_id}")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Cannot deactivate admin"
+
+
+async def test_deactivate_user_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.patch("/users/deactivate/999999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+async def test_activate_user_success(authenticated_client: AsyncClient, db_session):
+    new_user_id = (
+        await db_session.execute(
+            insert(Users)
+            .values(
+                username="user_to_act",
+                email="act@booking.com",
+                password_hash="fakehash",
+                role="user",
+                is_active=False,
+            )
+            .returning(Users.id)
+        )
+    ).scalar()
+    await db_session.commit()
+
+    response = await authenticated_client.patch(f"/users/activate/{new_user_id}")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["message"] == f"User {new_user_id} activated"
+
+
+async def test_activate_admin_forbidden(authenticated_client: AsyncClient, db_session):
+    admin_id = (
+        await db_session.execute(
+            insert(Users)
+            .values(
+                username="admin_to_act",
+                email="admin_act@booking.com",
+                password_hash="fakehash",
+                role="admin",
+                is_active=False,
+            )
+            .returning(Users.id)
+        )
+    ).scalar()
+    await db_session.commit()
+
+    response = await authenticated_client.patch(f"/users/activate/{admin_id}")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Cannot activate admin"
+
+
+async def test_activate_user_not_found(authenticated_client: AsyncClient):
+    response = await authenticated_client.patch("/users/activate/999999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
