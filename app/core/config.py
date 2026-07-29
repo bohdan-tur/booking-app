@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -22,7 +22,12 @@ class Settings(BaseSettings):
     SMTP_PORT: int
     SMTP_USER: str
     SMTP_PASSWORD: str
+    SMTP_TIMEOUT: int = 10
     EMAIL_FROM: str
+
+    TIMEZONE: str = "UTC"
+    SUPPORT_EMAIL: str = "support@example.com"
+    SUPPORT_PHONE: str = "+1234567890"
 
     DEBUG: bool = True
     TESTING: bool = False

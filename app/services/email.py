@@ -1,151 +1,202 @@
 import smtplib
+import ssl
 from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from app.core.config import settings
 from app.core.logger import logger
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+TEMPLATES_DIR = BASE_DIR / "templates" / "emails"
 
-def send_email(to_email: str, subject: str, body: str, html_body: str = None) -> bool:
+LOCAL_TZ = ZoneInfo(settings.TIMEZONE)
+
+
+def format_datetime_local(
+    dt: datetime,
+    fmt: str = "%d.%m.%Y at %H:%M",
+) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+
+    return dt.astimezone(LOCAL_TZ).strftime(fmt)
+
+
+template_env = Environment(
+    loader=FileSystemLoader(TEMPLATES_DIR),
+    autoescape=select_autoescape(("html", "xml")),
+)
+
+template_env.filters["local_time"] = format_datetime_local
+
+
+def _build_message(
+    *,
+    to_email: str,
+    subject: str,
+    text_body: str,
+    html_body: str,
+) -> EmailMessage:
+    message = EmailMessage()
+
+    message["Subject"] = subject
+    message["From"] = settings.EMAIL_FROM
+    message["To"] = to_email
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid()
+
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
+
+    return message
+
+
+def _send_message(message: EmailMessage) -> None:
+    context = ssl.create_default_context()
+
     try:
-        message = MIMEMultipart("alternative")
-        message["Subject"] = subject
-        message["From"] = settings.EMAIL_FROM
-        message["To"] = to_email
+        with smtplib.SMTP(
+            settings.SMTP_HOST,
+            settings.SMTP_PORT,
+            timeout=settings.SMTP_TIMEOUT,
+        ) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.ehlo()
 
-        text_part = MIMEText(body, "plain", "utf-8")
-        message.attach(text_part)
+            server.login(
+                settings.SMTP_USER,
+                settings.SMTP_PASSWORD,
+            )
 
-        if html_body:
-            html_part = MIMEText(html_body, "html", "utf-8")
-            message.attach(html_part)
+            server.send_message(message)
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.EMAIL_FROM, to_email, message.as_string())
+        logger.info(
+            "Email sent successfully",
+            extra={
+                "recipient": message["To"],
+                "subject": message["Subject"],
+            },
+        )
 
-        logger.info(f"Email successfully sent to {to_email}")
-        return True
+    except (smtplib.SMTPException, OSError):
+        logger.exception(
+            "Failed to send email",
+            extra={
+                "recipient": message["To"],
+                "subject": message["Subject"],
+            },
+        )
+        raise
 
-    except Exception as e:
-        logger.error(f"Error sending email to {to_email}: {e}")
-        return False
+
+def _render_and_send(
+    *,
+    template_name: str,
+    to_email: str,
+    subject: str,
+    context: dict,
+) -> None:
+    render_context = {
+        **context,
+        "support_email": settings.SUPPORT_EMAIL,
+        "support_phone": settings.SUPPORT_PHONE,
+    }
+
+    text_body = template_env.get_template(f"{template_name}.txt").render(
+        **render_context
+    )
+
+    html_body = template_env.get_template(f"{template_name}.html").render(
+        **render_context
+    )
+
+    message = _build_message(
+        to_email=to_email,
+        subject=subject,
+        text_body=text_body,
+        html_body=html_body,
+    )
+
+    _send_message(message)
 
 
 def send_booking_confirmation_email(
+    *,
     user_email: str,
     user_name: str,
     booking_id: int,
     room_name: str,
     start_time: datetime,
     end_time: datetime,
-) -> bool:
-    subject = "✅ Booking Confirmation"
-
-    body = f"""
-Dear {user_name},
-
-Thank you for your booking! 🎉
-
-📋 Booking Details:
-• Booking ID: #{booking_id}
-• Room Name: {room_name}
-• Check-in: {start_time.strftime("%d.%m.%Y at %H:%M")}
-• Check-out: {end_time.strftime("%d.%m.%Y at %H:%M")}
-
-Your booking is confirmed and waiting for you.
-
-ℹ️ Important Information:
-• Check-in time: after {start_time.strftime("%H:%M")}
-• Check-out time: before {end_time.strftime("%H:%M")}
-• Please contact us if you have any questions.
-
-Best regards,
-Booking System Team
-"""
-
-    html_body = f"""
-<html>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px;">
-        <h2 style="color: #28a745;">✅ Booking Confirmation</h2>
-        <p>Dear {user_name},</p>
-        <p>Thank you for your booking! 🎉</p>
-
-        <div style="background-color: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3>📋 Booking Details:</h3>
-            <ul>
-                <li><strong>Booking ID:</strong> #{booking_id}</li>
-                <li><strong>Room Name:</strong> {room_name}</li>
-                <li><strong>Check-in:</strong> {start_time.strftime("%d.%m.%Y at %H:%M")}</li>
-                <li><strong>Check-out:</strong> {end_time.strftime("%d.%m.%Y at %H:%M")}</li>
-            </ul>
-        </div>
-
-        <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px;">
-            <h4>ℹ️ Important Information:</h4>
-            <ul>
-                <li>Check-in time: after {start_time.strftime("%H:%M")}</li>
-                <li>Check-out time: before {end_time.strftime("%H:%M")}</li>
-                <li>Please contact us if you have any questions.</li>
-            </ul>
-        </div>
-
-        <p style="margin-top: 30px;">Best regards,<br>Booking System Team</p>
-    </div>
-</body>
-</html>
-"""
-
-    return send_email(user_email, subject, body, html_body)
+) -> None:
+    _render_and_send(
+        template_name="confirmation",
+        to_email=user_email,
+        subject="Booking Confirmation",
+        context={
+            "user_name": user_name,
+            "booking_id": booking_id,
+            "room_name": room_name,
+            "start_time": start_time,
+            "end_time": end_time,
+        },
+    )
 
 
 def send_booking_cancellation_email(
-    user_email: str, user_name: str, booking_id: int
-) -> bool:
-    subject = "❌ Booking Cancellation"
-
-    body = f"""
-Dear {user_name},
-
-Your booking #{booking_id} has been cancelled.
-
-If you did not cancel this booking, please contact us immediately.
-
-📞 Contact Information:
-• Phone: +380 XX XXX XX XX
-• Email: support@booking.com
-
-Best regards,
-Booking System Team
-"""
-
-    return send_email(user_email, subject, body)
+    *,
+    user_email: str,
+    user_name: str,
+    booking_id: int,
+) -> None:
+    _render_and_send(
+        template_name="cancellation",
+        to_email=user_email,
+        subject="Booking Cancellation",
+        context={
+            "user_name": user_name,
+            "booking_id": booking_id,
+        },
+    )
 
 
 def send_booking_reminder_email(
+    *,
     user_email: str,
     user_name: str,
     booking_id: int,
     room_name: str,
     start_time: datetime,
-) -> bool:
-    subject = "⏰ Upcoming Booking Reminder"
+) -> None:
+    _render_and_send(
+        template_name="reminder",
+        to_email=user_email,
+        subject="Upcoming Booking Reminder",
+        context={
+            "user_name": user_name,
+            "booking_id": booking_id,
+            "room_name": room_name,
+            "start_time": start_time,
+        },
+    )
 
-    body = f"""
-Dear {user_name},
 
-This is a reminder that your booking #{booking_id} starts tomorrow!
-
-📋 Booking Details:
-• Room Name: {room_name}
-• Check-in: {start_time.strftime("%d.%m.%Y at %H:%M")}
-
-Please be on time. We are looking forward to hosting you! 😊
-
-Best regards,
-Booking System Team
-"""
-
-    return send_email(user_email, subject, body)
+def send_email(
+    *,
+    to_email: str,
+    subject: str,
+    body: str,
+) -> None:
+    message = _build_message(
+        to_email=to_email,
+        subject=subject,
+        text_body=body,
+        html_body=body.replace("\n", "<br>"),
+    )
+    _send_message(message)
