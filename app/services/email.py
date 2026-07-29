@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.core.logger import logger
 
 
-def send_email(to_email: str, subject: str, body: str, html_body: str = None) -> bool:
+def send_email(to_email: str, subject: str, body: str, html_body: str | None = None) -> bool:
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
@@ -56,7 +56,7 @@ Thank you for your booking! 🎉
 
 Your booking is confirmed and waiting for you.
 
-ℹ️ Important Information:
+i️ Important Information:
 • Check-in time: after {start_time.strftime("%H:%M")}
 • Check-out time: before {end_time.strftime("%H:%M")}
 • Please contact us if you have any questions.
@@ -84,7 +84,7 @@ Booking System Team
         </div>
 
         <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px;">
-            <h4>ℹ️ Important Information:</h4>
+            <h4>i️ Important Information:</h4>
             <ul>
                 <li>Check-in time: after {start_time.strftime("%H:%M")}</li>
                 <li>Check-out time: before {end_time.strftime("%H:%M")}</li>

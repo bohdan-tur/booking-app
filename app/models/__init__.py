@@ -3,4 +3,4 @@ from .room_model import Rooms
 from .booking_model import Bookings
 from .role_model import Role
 
-__all__ = ["Users", "Rooms", "Bookings", "Role"]
+__all__ = ["Bookings", "Role", "Rooms", "Users"]

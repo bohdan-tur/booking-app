@@ -1,9 +1,9 @@
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
     AsyncSession,
 )
-from typing import AsyncGenerator
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
