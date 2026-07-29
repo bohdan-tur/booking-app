@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from unittest.mock import patch, MagicMock
 from app.services.email import (
     send_email,
@@ -51,8 +51,8 @@ def test_send_booking_confirmation_email():
     with patch("app.services.email.send_email") as mock_send_email:
         mock_send_email.return_value = True
 
-        start_time = datetime(2026, 7, 12, 10, 0)
-        end_time = datetime(2026, 7, 14, 10, 0)
+        start_time = datetime(2026, 7, 12, 10, 0, tzinfo=UTC)
+        end_time = datetime(2026, 7, 14, 10, 0, tzinfo=UTC)
 
         result = send_booking_confirmation_email(
             user_email="user@example.com",
@@ -95,7 +95,7 @@ def test_send_booking_reminder_email():
     with patch("app.services.email.send_email") as mock_send_email:
         mock_send_email.return_value = True
 
-        start_time = datetime(2026, 7, 12, 10, 0)
+        start_time = datetime(2026, 7, 12, 10, 0, tzinfo=UTC)
 
         result = send_booking_reminder_email(
             user_email="user@example.com",
@@ -118,8 +118,8 @@ def test_send_booking_confirmation_email_failure():
     with patch("app.services.email.send_email") as mock_send_email:
         mock_send_email.return_value = False
 
-        start_time = datetime(2026, 7, 12, 10, 0)
-        end_time = datetime(2026, 7, 14, 10, 0)
+        start_time = datetime(2026, 7, 12, 10, 0, tzinfo=UTC)
+        end_time = datetime(2026, 7, 14, 10, 0, tzinfo=UTC)
 
         result = send_booking_confirmation_email(
             user_email="user@example.com",
@@ -150,7 +150,7 @@ def test_send_booking_reminder_email_failure():
     with patch("app.services.email.send_email") as mock_send_email:
         mock_send_email.return_value = False
 
-        start_time = datetime(2026, 7, 12, 10, 0)
+        start_time = datetime(2026, 7, 12, 10, 0, tzinfo=UTC)
 
         result = send_booking_reminder_email(
             user_email="user@example.com",

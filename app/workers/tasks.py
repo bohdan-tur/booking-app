@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -148,7 +148,7 @@ def update_expired_bookings():
     async def update_statuses():
         async with CelerySessionLocal() as session:
             try:
-                current_time = datetime.now()
+                current_time = datetime.now(UTC)
 
                 stmt = (
                     update(Bookings)
@@ -183,7 +183,7 @@ def update_expired_bookings():
 def send_daily_reminders():
     async def fetch_reminders_data() -> list[dict]:
         async with CelerySessionLocal() as session:
-            tomorrow = datetime.now() + timedelta(days=1)
+            tomorrow = datetime.now(UTC) + timedelta(days=1)
             start_of_tomorrow = tomorrow.replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
@@ -262,7 +262,7 @@ def cleanup_old_bookings():
     async def cleanup():
         async with CelerySessionLocal() as session:
             try:
-                one_year_ago = datetime.now() - timedelta(days=365)
+                one_year_ago = datetime.now(UTC) - timedelta(days=365)
 
                 stmt = delete(Bookings).where(
                     Bookings.end_time < one_year_ago,
@@ -291,7 +291,7 @@ def cleanup_old_bookings():
 def generate_daily_statistics():
     async def fetch_statistics_data() -> dict:
         async with CelerySessionLocal() as session:
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             tomorrow = today + timedelta(days=1)
 
             stmt = select(Bookings).where(
@@ -303,7 +303,7 @@ def generate_daily_statistics():
             stmt = select(Bookings).where(Bookings.status == "active")
             active_bookings = len((await session.execute(stmt)).scalars().all())
 
-            week_ago = datetime.now() - timedelta(days=7)
+            week_ago = datetime.now(UTC) - timedelta(days=7)
             stmt = select(Bookings).where(
                 Bookings.end_time >= week_ago,
                 Bookings.status == "completed",
@@ -325,7 +325,7 @@ def generate_daily_statistics():
             stats = await fetch_statistics_data()
 
             report = f"""
-Daily Report ({datetime.now().strftime("%d.%m.%Y")})
+Daily Report ({datetime.now(UTC).strftime("%d.%m.%Y")})
 
 Statistics:
 • New bookings today: {stats["today_bookings"]}
@@ -342,7 +342,7 @@ More detailed statistics are available in the admin panel.
                     await asyncio.to_thread(
                         send_email,
                         to_email=email,
-                        subject=f"Daily Report - {datetime.now().strftime('%d.%m.%Y')}",
+                        subject=f"Daily Report - {datetime.now(UTC).strftime('%d.%m.%Y')}",
                         body=report,
                     )
                     admins_notified += 1
