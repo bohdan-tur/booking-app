@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import patch
 
 from httpx import AsyncClient
@@ -44,7 +43,7 @@ async def test_readiness_probe_db_failure(client: AsyncClient):
 
 async def test_readiness_probe_db_timeout(client: AsyncClient):
     with patch("sqlalchemy.ext.asyncio.AsyncSession.execute") as mock_execute:
-        mock_execute.side_effect = asyncio.TimeoutError("Query timed out")
+        mock_execute.side_effect = TimeoutError("Query timed out")
 
         response = await client.get("/system/ready")
 

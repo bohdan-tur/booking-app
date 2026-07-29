@@ -1,6 +1,8 @@
+from datetime import timedelta
+
 from httpx import AsyncClient
 from sqlalchemy import insert
-from datetime import timedelta
+
 from app.core.security import create_access_token
 from app.models.user_model import Users
 

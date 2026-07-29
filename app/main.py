@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Response
-from app.api.routers import auth, users, rooms, bookings, system
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.api.routers import auth, bookings, rooms, system, users
 from app.core.config import settings
 from app.core.logger import logger
-import time
-from fastapi import Request
-from contextlib import asynccontextmanager
 from app.db.seed import seed_data
 
 
@@ -17,8 +19,8 @@ async def lifespan(app: FastAPI):
     try:
         await seed_data()
         logger.info("✅ Database seeded successfully.")
-    except Exception as e:
-        logger.error(f"❌ Error during database seeding: {e}")
+    except SQLAlchemyError:
+        logger.exception("❌ Error during database seeding")
 
     yield
 

@@ -1,16 +1,15 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, delete, update
+from sqlalchemy import delete, select, update
 
-from app.api.dependencies import DbSession
-from app.api.dependencies import get_current_user, allow_admin_and_manager
+from app.api.dependencies import DbSession, allow_admin_and_manager, get_current_user
 from app.models.booking_model import Bookings
 from app.models.role_model import Role
 from app.models.user_model import Users
-from app.schemas.booking_schema import BookingOut, BookingUpdate, BookingCreate
+from app.schemas.booking_schema import BookingCreate, BookingOut, BookingUpdate
 from app.services.booking_check import create_booking_if_available
-from app.workers.tasks import process_booking_creation, process_booking_cancellation
+from app.workers.tasks import process_booking_cancellation, process_booking_creation
 
 router = APIRouter(tags=["Bookings"])
 

@@ -1,16 +1,17 @@
-from datetime import datetime, timedelta, UTC
-from unittest.mock import patch, MagicMock, AsyncMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.workers.tasks import (
-    process_booking_creation,
-    process_booking_cancellation,
-    update_expired_bookings,
-    send_daily_reminders,
     cleanup_old_bookings,
     generate_daily_statistics,
+    process_booking_cancellation,
+    process_booking_creation,
+    send_daily_reminders,
+    update_expired_bookings,
 )
 
 FIXED_NOW = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
+
 
 @patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_confirmation_email")
@@ -32,6 +33,7 @@ def test_process_booking_creation_success(mock_send_email, mock_session_local):
     assert result == {"status": "success"}
     mock_send_email.assert_called_once()
 
+
 @patch("app.workers.tasks.CelerySessionLocal")
 def test_process_booking_creation_not_found(mock_session_local):
     mock_session = AsyncMock()
@@ -44,6 +46,7 @@ def test_process_booking_creation_not_found(mock_session_local):
     result = process_booking_creation.run(999)
 
     assert result == {"status": "error", "message": "Booking not found"}
+
 
 @patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_cancellation_email")
@@ -62,6 +65,7 @@ def test_process_booking_cancellation_success(mock_send_email, mock_session_loca
     assert result == {"status": "success"}
     mock_send_email.assert_called_once()
 
+
 @patch("app.workers.tasks.CelerySessionLocal")
 def test_update_expired_bookings(mock_session_local):
     mock_session = AsyncMock()
@@ -75,6 +79,7 @@ def test_update_expired_bookings(mock_session_local):
 
     assert result == 5
     mock_session.commit.assert_called_once()
+
 
 @patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_booking_reminder_email")
@@ -96,6 +101,7 @@ def test_send_daily_reminders(mock_send_email, mock_session_local):
     assert result == 1
     mock_send_email.assert_called_once()
 
+
 @patch("app.workers.tasks.CelerySessionLocal")
 def test_cleanup_old_bookings(mock_session_local):
     mock_session = AsyncMock()
@@ -109,6 +115,7 @@ def test_cleanup_old_bookings(mock_session_local):
 
     assert result == 10
     mock_session.commit.assert_called_once()
+
 
 @patch("app.workers.tasks.CelerySessionLocal")
 @patch("app.workers.tasks.send_email")

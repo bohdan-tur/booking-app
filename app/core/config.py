@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/booking"
-    TEST_DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/booking_test"
+    TEST_DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/booking_test"
+    )
     REDIS_URL: str = "redis://localhost:6329/0"
 
     ADMIN_DEFAULT_PASSWORD: str = Field(default="dev_admin_password")
@@ -12,7 +14,9 @@ class Settings(BaseSettings):
     USER_DEFAULT_PASSWORD: str = Field(default="dev_user_password")
 
     SECRET_KEY: str = "dev_super_secret_key_for_access_token_generation_32_bytes"
-    REFRESH_SECRET_KEY: str = "dev_super_secret_key_for_refresh_token_generation_32_bytes"
+    REFRESH_SECRET_KEY: str = (
+        "dev_super_secret_key_for_refresh_token_generation_32_bytes"
+    )
     ALGORITHM: str = "HS256"
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15

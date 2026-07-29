@@ -1,5 +1,6 @@
 import re
 from typing import TYPE_CHECKING
+
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -8,6 +9,8 @@ from app.models.role_model import Role
 
 if TYPE_CHECKING:
     from app.models.booking_model import Bookings
+
+MIN_USERNAME_LENGTH = 3
 
 
 class Users(Base):
@@ -30,8 +33,10 @@ class Users(Base):
 
     @validates("username")
     def validate_username(self, key: str, username: str) -> str:
-        if len(username) < 3:
-            raise ValueError("Username must be at least 3 characters long")
+        if len(username) < MIN_USERNAME_LENGTH:
+            raise ValueError(
+                f"Username must be at least {MIN_USERNAME_LENGTH} characters long"
+            )
         if not re.match(r"^[a-zA-Z0-9_]+$", username):
             raise ValueError(
                 "Username can only contain letters, numbers, and underscores"
