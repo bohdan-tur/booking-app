@@ -258,3 +258,4 @@ async def delete_room_by_id(db: DbSession, room_id: Annotated[int, Path(gt=0)]) 
         )
 
     await db.commit()
+    return None
