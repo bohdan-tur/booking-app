@@ -31,7 +31,9 @@ async def readiness_check(response: Response, db: DbSession) -> ReadinessRespons
     try:
         await asyncio.wait_for(db.execute(text("SELECT 1")), timeout=2.0)
         checks["database"] = HealthCheckComponent(status="pass")
-    except Exception as e:
+    # A readiness probe must report every dependency failure as 503 instead
+    # of propagating an unexpected driver error through the application.
+    except Exception as e:  # noqa: BLE001
         checks["database"] = HealthCheckComponent(status="fail", detail=str(e))
         is_ready = False
 

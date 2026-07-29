@@ -1,7 +1,7 @@
 import logging.config
 import os
-from app.core.logging_config import LOGGING_CONFIG
 
+from app.core.logging_config import LOGGING_CONFIG
 
 os.makedirs("logs", exist_ok=True)
 

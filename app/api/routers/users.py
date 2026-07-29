@@ -1,15 +1,18 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update, delete
+from sqlalchemy import delete, select, update
 
-from app.api.dependencies import DbSession
-from app.api.dependencies import allow_admin_and_manager, allow_admin, get_current_user
-from app.models.user_model import Users
-from app.models.role_model import Role
+from app.api.dependencies import (
+    DbSession,
+    allow_admin,
+    allow_admin_and_manager,
+    get_current_user,
+)
 from app.core.security import hash_password
+from app.models.role_model import Role
+from app.models.user_model import Users
 from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
-
 
 router = APIRouter(tags=["Users"])
 
@@ -43,8 +46,7 @@ async def change_password(
 )
 async def get_all_users(db: DbSession) -> list[UserOut]:
     query_result = await db.execute(select(Users))
-    users = query_result.scalars().all()
-    return users
+    return query_result.scalars().all()
 
 
 @router.get(

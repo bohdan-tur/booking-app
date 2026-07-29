@@ -1,11 +1,12 @@
 import asyncio
+
 from sqlalchemy import select
 
+from app.core.config import settings
+from app.core.security import hash_password
 from app.db.database import AsyncSessionLocal
 from app.models.role_model import Role
 from app.models.user_model import Users
-from app.core.config import settings
-from app.core.security import hash_password
 
 
 async def seed_data() -> None:

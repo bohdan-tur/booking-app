@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class BookingValidationBase(BaseModel):
@@ -7,9 +8,11 @@ class BookingValidationBase(BaseModel):
 
     @model_validator(mode="after")
     def check_dates(self):
-        if getattr(self, "start_time", None) and getattr(self, "end_time", None):
-            if self.start_time >= self.end_time:
-                raise ValueError("Start time must be before end time")
+        start_time = getattr(self, "start_time", None)
+        end_time = getattr(self, "end_time", None)
+
+        if start_time is not None and end_time is not None and start_time >= end_time:
+            raise ValueError("Start time must be before end time")
         return self
 
 

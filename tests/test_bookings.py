@@ -1,12 +1,13 @@
-import pytest
-from datetime import datetime, timedelta, UTC
-from httpx import AsyncClient
-from sqlalchemy import delete
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-from app.models.room_model import Rooms
-from app.models.booking_model import Bookings
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import delete
+
 from app.core.security import create_access_token
+from app.models.booking_model import Bookings
+from app.models.room_model import Rooms
 
 
 @patch("app.api.routers.bookings.process_booking_creation.delay")

@@ -9,19 +9,9 @@ select = [
 ignore = [
     "B008",
     "E501",
-    "PLR0913",
-    "PLR0917",
-    "BLE001",
-    "RET504",
-    "SIM102",
-    "B904",
-    "B905",
-    "I001",
-    "UP042",
-    "PLR2004",
-    "UP017",
-    "UP041"
+
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004"]
+"app/services/email.py" = ["PLR0913"]
+"tests/*" = ["PLR2004", "PLR0913", "PLR0917"]

@@ -1,21 +1,22 @@
 from datetime import timedelta
 from typing import Annotated
-from app.api.dependencies import DbSession
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
+
+from app.api.dependencies import DbSession
 from app.core.config import settings
 from app.core.security import (
-    verify_refresh_token,
-    create_refresh_token,
     create_access_token,
+    create_refresh_token,
+    hash_password,
     verify_password,
+    verify_refresh_token,
 )
 from app.models.user_model import Users
 from app.schemas.token_schema import RefreshToken_Schema
 from app.schemas.user_schema import UserCreate, UserOut
-from app.core.security import hash_password
-
 
 router = APIRouter(tags=["Auth"])
 

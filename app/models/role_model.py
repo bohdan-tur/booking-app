@@ -1,7 +1,7 @@
-import enum
+from enum import StrEnum
 
 
-class Role(str, enum.Enum):
+class Role(StrEnum):
     user = "User"
     manager = "Manager"
     admin = "Admin"

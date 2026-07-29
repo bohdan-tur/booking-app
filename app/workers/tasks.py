@@ -1,7 +1,9 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+import smtplib
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -30,7 +32,7 @@ CelerySessionLocal = async_sessionmaker(
 
 
 def get_db_utc_time() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 @celery_app.task(bind=True, max_retries=3, name="process_booking_creation")
@@ -67,9 +69,9 @@ def process_booking_creation(self, booking_id: int):
 
     try:
         return asyncio.run(process())
-    except Exception as exc:
-        logger.error(f"Error processing booking {booking_id}: {exc}")
-        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc)
+    except (OSError, smtplib.SMTPException, SQLAlchemyError) as exc:
+        logger.exception("Error processing booking %s", booking_id)
+        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc) from exc
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -96,9 +98,9 @@ def process_booking_cancellation(self, booking_id: int):
 
     try:
         return asyncio.run(process())
-    except Exception as exc:
-        logger.error(f"Error processing booking cancellation {booking_id}: {exc}")
-        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc)
+    except (OSError, smtplib.SMTPException, SQLAlchemyError) as exc:
+        logger.exception("Error processing booking cancellation %s", booking_id)
+        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc) from exc
 
 
 @celery_app.task
@@ -127,8 +129,8 @@ def update_expired_bookings():
 
                 return result.rowcount
 
-            except Exception as e:
-                logger.error(f"Error updating booking statuses: {e}")
+            except SQLAlchemyError:
+                logger.exception("Error updating booking statuses")
                 await session.rollback()
                 return 0
 
@@ -179,7 +181,7 @@ def send_daily_reminders():
         results = await asyncio.gather(*email_tasks, return_exceptions=True)
 
         reminders_sent = 0
-        for (booking, _, _), res in zip(bookings_data, results):
+        for (booking, _, _), res in zip(bookings_data, results, strict=True):
             if isinstance(res, Exception):
                 logger.error(f"Error sending reminder for booking {booking.id}: {res}")
             else:
@@ -214,8 +216,8 @@ def cleanup_old_bookings():
 
                 return result.rowcount
 
-            except Exception as e:
-                logger.error(f"Error cleaning up old bookings: {e}")
+            except SQLAlchemyError:
+                logger.exception("Error cleaning up old bookings")
                 await session.rollback()
                 return 0
 
@@ -287,7 +289,7 @@ More detailed statistics are available in the admin panel.
         results = await asyncio.gather(*email_tasks, return_exceptions=True)
 
         admins_notified = 0
-        for email, res in zip(admin_emails, results):
+        for email, res in zip(admin_emails, results, strict=True):
             if isinstance(res, Exception):
                 logger.error(f"Error sending report to {email}: {res}")
             else:
