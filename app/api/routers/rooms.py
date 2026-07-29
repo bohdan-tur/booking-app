@@ -1,10 +1,10 @@
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException, Path, Query
-from sqlalchemy import select, update, delete, and_, func
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from sqlalchemy import and_, delete, func, select, update
 
-from app.api.dependencies import allow_admin, allow_admin_and_manager, DbSession
+from app.api.dependencies import DbSession, allow_admin, allow_admin_and_manager
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
 from app.schemas.room_schema import RoomCreate, RoomOut, RoomUpdate
@@ -258,4 +258,3 @@ async def delete_room_by_id(db: DbSession, room_id: Annotated[int, Path(gt=0)]) 
         )
 
     await db.commit()
-    return None

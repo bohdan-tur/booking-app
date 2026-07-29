@@ -1,12 +1,13 @@
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
+    AsyncSession,
     async_sessionmaker,
     create_async_engine,
-    AsyncSession,
 )
-from typing import AsyncGenerator
 from sqlalchemy.orm import DeclarativeBase
-from app.core.config import settings
 
+from app.core.config import settings
 
 URL = settings.DATABASE_URL
 DEBUG = settings.DEBUG

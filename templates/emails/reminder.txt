@@ -1,0 +1,13 @@
+Hello {{ user_name }},
+
+This is a reminder that your booking starts soon.
+
+Booking ID: #{{ booking_id }}
+Room: {{ room_name }}
+Check-in: {{ start_time | local_time }}
+
+We look forward to welcoming you.
+
+Support:
+Email: {{ support_email }}
+Phone: {{ support_phone }}

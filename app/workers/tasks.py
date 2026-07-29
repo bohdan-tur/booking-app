@@ -1,7 +1,7 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -29,16 +29,13 @@ CelerySessionLocal = async_sessionmaker(
 )
 
 
+def get_db_utc_time() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @celery_app.task(bind=True, max_retries=3, name="process_booking_creation")
-def process_booking_creation(
-    self,
-    booking_id: int,
-    user_id: int,
-    room_id: int,
-    start_time: datetime,
-    end_time: datetime,
-):
-    async def fetch_booking_data() -> dict | None:
+def process_booking_creation(self, booking_id: int):
+    async def process():
         async with CelerySessionLocal() as session:
             stmt = (
                 select(Bookings, Users, Rooms)
@@ -50,97 +47,58 @@ def process_booking_creation(
             booking_data = result.first()
 
             if not booking_data:
-                return None
-
-            booking, user, room = booking_data
-            return {
-                "user_email": user.email,
-                "user_name": user.username,
-                "booking_id": booking.id,
-                "room_name": room.name,
-                "start_time": booking.start_time,
-                "end_time": booking.end_time,
-            }
-
-    async def process_booking():
-        try:
-            data = await fetch_booking_data()
-
-            if not data:
                 logger.error(f"Booking {booking_id} not found")
                 return {"status": "error", "message": "Booking not found"}
 
-            email_sent = await asyncio.to_thread(
-                send_booking_confirmation_email,
-                user_email=data["user_email"],
-                user_name=data["user_name"],
-                booking_id=data["booking_id"],
-                room_name=data["room_name"],
-                start_time=data["start_time"],
-                end_time=data["end_time"],
-            )
+            booking, user, room = booking_data
 
-            if email_sent:
-                logger.info(f"Confirmation email sent for booking {booking_id}")
-                return {"status": "success", "email_sent": True}
+        await asyncio.to_thread(
+            send_booking_confirmation_email,
+            user_email=user.email,
+            user_name=user.username,
+            booking_id=booking.id,
+            room_name=room.name,
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+        )
 
-            logger.error(f"Failed to send email for booking {booking_id}")
-            return {"status": "success", "email_sent": False}
+        logger.info(f"Confirmation email sent for booking {booking_id}")
+        return {"status": "success"}
 
-        except Exception as exc:
-            logger.error(f"Error processing booking {booking_id}: {exc}")
-            if self.request.retries < self.max_retries:
-                raise self.retry(countdown=60 * (self.request.retries + 1))
-            return {"status": "error", "message": str(exc)}
-
-    return asyncio.run(process_booking())
+    try:
+        return asyncio.run(process())
+    except Exception as exc:
+        logger.error(f"Error processing booking {booking_id}: {exc}")
+        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc)
 
 
 @celery_app.task(bind=True, max_retries=3)
-def process_booking_cancellation(self, booking_id: int, user_id: int):
-    async def fetch_user_data() -> dict | None:
+def process_booking_cancellation(self, booking_id: int):
+    async def process():
         async with CelerySessionLocal() as session:
-            stmt = select(Users).where(Users.id == user_id)
+            stmt = select(Users).join(Bookings).where(Bookings.id == booking_id)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
 
             if not user:
-                return None
+                logger.error(f"User for cancelled booking {booking_id} not found")
+                return {"status": "error"}
 
-            return {
-                "email": user.email,
-                "username": user.username,
-            }
+        await asyncio.to_thread(
+            send_booking_cancellation_email,
+            user_email=user.email,
+            user_name=user.username,
+            booking_id=booking_id,
+        )
 
-    async def process_cancellation():
-        try:
-            user_data = await fetch_user_data()
+        logger.info(f"Cancellation email sent for booking {booking_id}")
+        return {"status": "success"}
 
-            if not user_data:
-                logger.error(f"User {user_id} not found")
-                return {"status": "error", "message": "User not found"}
-
-            email_sent = await asyncio.to_thread(
-                send_booking_cancellation_email,
-                user_email=user_data["email"],
-                user_name=user_data["username"],
-                booking_id=booking_id,
-            )
-
-            if email_sent:
-                logger.info(f"Cancellation email sent for booking {booking_id}")
-                return {"status": "success", "email_sent": True}
-
-            logger.error(f"Failed to send cancellation email for booking {booking_id}")
-            return {"status": "success", "email_sent": False}
-
-        except Exception as exc:
-            logger.error(f"Error processing booking cancellation {booking_id}: {exc}")
-            if self.request.retries < self.max_retries:
-                raise self.retry(countdown=60 * (self.request.retries + 1))
-            return {"status": "error", "message": str(exc)}
-
-    return asyncio.run(process_cancellation())
+    try:
+        return asyncio.run(process())
+    except Exception as exc:
+        logger.error(f"Error processing booking cancellation {booking_id}: {exc}")
+        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc)
 
 
 @celery_app.task
@@ -148,7 +106,7 @@ def update_expired_bookings():
     async def update_statuses():
         async with CelerySessionLocal() as session:
             try:
-                current_time = datetime.now()
+                current_time = get_db_utc_time()
 
                 stmt = (
                     update(Bookings)
@@ -162,14 +120,12 @@ def update_expired_bookings():
                 result = await session.execute(stmt)
                 await session.commit()
 
-                updated_count = result.rowcount
-
-                if updated_count > 0:
+                if result.rowcount > 0:
                     logger.info(
-                        f"Updated {updated_count} booking statuses to 'expired'"
+                        f"Updated {result.rowcount} booking statuses to 'expired'"
                     )
 
-                return updated_count
+                return result.rowcount
 
             except Exception as e:
                 logger.error(f"Error updating booking statuses: {e}")
@@ -181,9 +137,9 @@ def update_expired_bookings():
 
 @celery_app.task
 def send_daily_reminders():
-    async def fetch_reminders_data() -> list[dict]:
+    async def process_reminders():
         async with CelerySessionLocal() as session:
-            tomorrow = datetime.now() + timedelta(days=1)
+            tomorrow = get_db_utc_time() + timedelta(days=1)
             start_of_tomorrow = tomorrow.replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
@@ -205,54 +161,35 @@ def send_daily_reminders():
             result = await session.execute(stmt)
             bookings_data = result.all()
 
-            return [
-                {
-                    "user_email": user.email,
-                    "user_name": user.username,
-                    "booking_id": booking.id,
-                    "room_name": room.name,
-                    "start_time": booking.start_time,
-                }
-                for booking, user, room in bookings_data
-            ]
-
-    async def process_reminders():
-        try:
-            reminders_data = await fetch_reminders_data()
-            reminders_sent = 0
-
-            for data in reminders_data:
-                try:
-                    email_sent = await asyncio.to_thread(
-                        send_booking_reminder_email,
-                        user_email=data["user_email"],
-                        user_name=data["user_name"],
-                        booking_id=data["booking_id"],
-                        room_name=data["room_name"],
-                        start_time=data["start_time"],
-                    )
-
-                    if email_sent:
-                        reminders_sent += 1
-                        logger.info(f"Reminder sent for booking {data['booking_id']}")
-                    else:
-                        logger.error(
-                            f"Failed to send reminder for booking {data['booking_id']}"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error sending reminder for booking {data['booking_id']}: {e}"
-                    )
-
-            if reminders_sent > 0:
-                logger.info(f"Sent {reminders_sent} reminders")
-
-            return reminders_sent
-
-        except Exception as e:
-            logger.error(f"Error processing daily reminders: {e}")
+        if not bookings_data:
             return 0
+
+        email_tasks = [
+            asyncio.to_thread(
+                send_booking_reminder_email,
+                user_email=user.email,
+                user_name=user.username,
+                booking_id=booking.id,
+                room_name=room.name,
+                start_time=booking.start_time,
+            )
+            for booking, user, room in bookings_data
+        ]
+
+        results = await asyncio.gather(*email_tasks, return_exceptions=True)
+
+        reminders_sent = 0
+        for (booking, _, _), res in zip(bookings_data, results):
+            if isinstance(res, Exception):
+                logger.error(f"Error sending reminder for booking {booking.id}: {res}")
+            else:
+                reminders_sent += 1
+                logger.info(f"Reminder sent for booking {booking.id}")
+
+        if reminders_sent > 0:
+            logger.info(f"Sent {reminders_sent} reminders")
+
+        return reminders_sent
 
     return asyncio.run(process_reminders())
 
@@ -262,7 +199,7 @@ def cleanup_old_bookings():
     async def cleanup():
         async with CelerySessionLocal() as session:
             try:
-                one_year_ago = datetime.now() - timedelta(days=365)
+                one_year_ago = get_db_utc_time() - timedelta(days=365)
 
                 stmt = delete(Bookings).where(
                     Bookings.end_time < one_year_ago,
@@ -272,12 +209,10 @@ def cleanup_old_bookings():
                 result = await session.execute(stmt)
                 await session.commit()
 
-                deleted_count = result.rowcount
+                if result.rowcount > 0:
+                    logger.info(f"Deleted {result.rowcount} old bookings")
 
-                if deleted_count > 0:
-                    logger.info(f"Deleted {deleted_count} old bookings")
-
-                return deleted_count
+                return result.rowcount
 
             except Exception as e:
                 logger.error(f"Error cleaning up old bookings: {e}")
@@ -289,77 +224,75 @@ def cleanup_old_bookings():
 
 @celery_app.task
 def generate_daily_statistics():
-    async def fetch_statistics_data() -> dict:
-        async with CelerySessionLocal() as session:
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            tomorrow = today + timedelta(days=1)
-
-            stmt = select(Bookings).where(
-                Bookings.start_time >= today,
-                Bookings.start_time < tomorrow,
-            )
-            today_bookings = len((await session.execute(stmt)).scalars().all())
-
-            stmt = select(Bookings).where(Bookings.status == "active")
-            active_bookings = len((await session.execute(stmt)).scalars().all())
-
-            week_ago = datetime.now() - timedelta(days=7)
-            stmt = select(Bookings).where(
-                Bookings.end_time >= week_ago,
-                Bookings.status == "completed",
-            )
-            completed_bookings = len((await session.execute(stmt)).scalars().all())
-
-            stmt = select(Users).where(Users.role == "admin")
-            admins = (await session.execute(stmt)).scalars().all()
-
-            return {
-                "today_bookings": today_bookings,
-                "active_bookings": active_bookings,
-                "completed_bookings": completed_bookings,
-                "admin_emails": [admin.email for admin in admins],
-            }
-
     async def process_statistics():
-        try:
-            stats = await fetch_statistics_data()
+        async with CelerySessionLocal() as session:
+            today = get_db_utc_time().replace(hour=0, minute=0, second=0, microsecond=0)
+            tomorrow = today + timedelta(days=1)
+            week_ago = get_db_utc_time() - timedelta(days=7)
 
-            report = f"""
-Daily Report ({datetime.now().strftime("%d.%m.%Y")})
+            stmt_today = (
+                select(func.count())
+                .select_from(Bookings)
+                .where(
+                    Bookings.start_time >= today,
+                    Bookings.start_time < tomorrow,
+                )
+            )
+            today_bookings = await session.scalar(stmt_today)
+
+            stmt_active = (
+                select(func.count())
+                .select_from(Bookings)
+                .where(Bookings.status == "active")
+            )
+            active_bookings = await session.scalar(stmt_active)
+
+            stmt_completed = (
+                select(func.count())
+                .select_from(Bookings)
+                .where(
+                    Bookings.end_time >= week_ago,
+                    Bookings.status == "completed",
+                )
+            )
+            completed_bookings = await session.scalar(stmt_completed)
+
+            stmt_admins = select(Users).where(Users.role == "admin")
+            admins = (await session.execute(stmt_admins)).scalars().all()
+
+        report = f"""
+Daily Report ({get_db_utc_time().strftime("%d.%m.%Y")})
 
 Statistics:
-• New bookings today: {stats["today_bookings"]}
-• Active bookings: {stats["active_bookings"]}
-• Completed in the last 7 days: {stats["completed_bookings"]}
+• New bookings today: {today_bookings or 0}
+• Active bookings: {active_bookings or 0}
+• Completed in the last 7 days: {completed_bookings or 0}
 
 More detailed statistics are available in the admin panel.
 """
+        admin_emails = [admin.email for admin in admins]
+        if not admin_emails:
+            return {"status": "no_admins"}
 
-            admins_notified = 0
+        email_tasks = [
+            asyncio.to_thread(
+                send_email,
+                to_email=email,
+                subject=f"Daily Report - {get_db_utc_time().strftime('%d.%m.%Y')}",
+                body=report,
+            )
+            for email in admin_emails
+        ]
 
-            for email in stats["admin_emails"]:
-                try:
-                    await asyncio.to_thread(
-                        send_email,
-                        to_email=email,
-                        subject=f"Daily Report - {datetime.now().strftime('%d.%m.%Y')}",
-                        body=report,
-                    )
-                    admins_notified += 1
-                    logger.info(f"Daily report sent to admin {email}")
+        results = await asyncio.gather(*email_tasks, return_exceptions=True)
 
-                except Exception as e:
-                    logger.error(f"Error sending daily report to admin {email}: {e}")
+        admins_notified = 0
+        for email, res in zip(admin_emails, results):
+            if isinstance(res, Exception):
+                logger.error(f"Error sending report to {email}: {res}")
+            else:
+                admins_notified += 1
 
-            return {
-                "today_bookings": stats["today_bookings"],
-                "active_bookings": stats["active_bookings"],
-                "completed_bookings": stats["completed_bookings"],
-                "admins_notified": admins_notified,
-            }
-
-        except Exception as e:
-            logger.error(f"Error processing daily statistics: {e}")
-            return {"error": str(e)}
+        return {"admins_notified": admins_notified}
 
     return asyncio.run(process_statistics())

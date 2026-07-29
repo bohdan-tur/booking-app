@@ -3,7 +3,7 @@ name: Booking App CI
 
 on:
   push:
-    branches: [ main,master,ci/ci-implementation ]
+    branches: [ main,master,ci/ci-implementation,refactor/*,feature/* ]
   pull_request:
     branches: [ main,master ]
 
@@ -33,14 +33,19 @@ jobs:
           echo "ADMIN_DEFAULT_PASSWORD=${{ secrets.ADMIN_DEFAULT_PASSWORD }}" >> .env
           echo "MANAGER_DEFAULT_PASSWORD=${{ secrets.MANAGER_DEFAULT_PASSWORD }}" >> .env
           echo "USER_DEFAULT_PASSWORD=${{ secrets.USER_DEFAULT_PASSWORD }}" >> .env
-          echo "ACCESS_TOKEN_EXPIRE_MINUTES=15" >> .env
-          echo "REFRESH_TOKEN_EXPIRE_DAYS=7" >> .env
+          echo "ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}" >> .env
+          echo "REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}" >> .env
           echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
           echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
           echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
           echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+          echo "SMTP_TIMEOUT=${SMTP_TIMEOUT}" >> .env
           echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
-          echo "DEBUG=true" >> .env
+          echo "TIMEZONE=${TIMEZONE}" >> .env
+          echo "SUPPORT_EMAIL=${SUPPORT_EMAIL}" >> .env
+          echo "SUPPORT_PHONE=${SUPPORT_PHONE}" >> .env
+          echo "DEBUG=${DEBUG}" >> .env
+          echo "CORS_ORIGINS=${CORS_ORIGINS}" >> .env
           echo "TESTING=true" >> .env
 
       - name: "Start test database"
