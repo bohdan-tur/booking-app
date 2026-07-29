@@ -1,6 +1,7 @@
 from celery import Celery
-from app.core.config import settings
+from celery.schedules import crontab
 
+from app.core.config import settings
 
 if settings.TESTING:
     celery_app = Celery(
@@ -25,7 +26,7 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="UTC",
+    timezone=settings.TIMEZONE,
     enable_utc=True,
     beat_schedule={
         "update-expired-bookings": {
@@ -34,11 +35,11 @@ celery_app.conf.update(
         },
         "send-daily-reminders": {
             "task": "app.workers.tasks.send_daily_reminders",
-            "schedule": 86400.0,
+            "schedule": crontab(hour="9", minute="0"),
         },
         "generate-daily-statistics": {
             "task": "app.workers.tasks.generate_daily_statistics",
-            "schedule": 86400.0,
+            "schedule": crontab(hour="23", minute="59"),
         },
     },
 )

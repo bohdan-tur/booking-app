@@ -1,10 +1,10 @@
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
+
 from app.api.dependencies import DbSession
 from app.models.booking_model import Bookings
 from app.models.room_model import Rooms
 from app.schemas.booking_schema import BookingCreate
-from sqlalchemy import and_, func
 
 
 async def create_booking_if_available(
@@ -12,7 +12,8 @@ async def create_booking_if_available(
     booking_data: BookingCreate,
     user_id: int,
 ) -> Bookings:
-    room = await db.execute(select(Rooms).where(Rooms.id == booking_data.room_id))
+    room = await (db.execute(select(Rooms).where(Rooms.id == booking_data.room_id))
+                                                               .with_for_update())
     target_room = room.scalar_one_or_none()
 
     if not target_room:
