@@ -1,59 +1,94 @@
 name: Booking App CI
 
-
 on:
   push:
-    branches: [ main,master,ci/ci-implementation,refactor/*,feature/* ]
+    branches: [main, master, "ci/**", "refactor/**", "feature/**", "chore/**"]
   pull_request:
-    branches: [ main,master ]
+    branches: [main, master]
 
 jobs:
-  tests:
+  verification:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/test_db
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379/0
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test_db
+      ALGORITHM: HS256
+      SECRET_KEY: ci-test-access-key-not-for-production
+      REFRESH_SECRET_KEY: ci-test-refresh-key-not-for-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      ADMIN_DEFAULT_PASSWORD: ci-test-admin-password
+      MANAGER_DEFAULT_PASSWORD: ci-test-manager-password
+      USER_DEFAULT_PASSWORD: ci-test-user-password
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_USER: ci-test-user
+      SMTP_PASSWORD: ci-test-password
+      SMTP_TIMEOUT: "10"
+      EMAIL_FROM: test@example.com
+      TIMEZONE: UTC
+      SUPPORT_EMAIL: support@example.com
+      SUPPORT_PHONE: "+380000000000"
+      DEBUG: "false"
+      TESTING: "true"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      FLOWER_BASIC_AUTH: admin:ci-test-password
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
-      - name: "Code downloading"
+      - name: Check out repository
         uses: actions/checkout@v4
-      - name: "Set up Python code"
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: "Check code with Ruff"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install development dependencies
+        run: python -m pip install --no-cache-dir -r requirements-dev.txt
+
+      - name: Check code with Ruff
         run: |
-          pip install ruff
           ruff check .
+          ruff format --check .
 
-      - name: "Create .env file"
+      - name: Audit runtime dependencies
+        run: pip-audit -r requirements.txt
+
+      - name: Verify migration lifecycle
         run: |
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-          echo "TEST_DATABASE_URL=postgresql+asyncpg://postgres:password@db_test:5432/test_db" >> .env
-          echo "REDIS_URL=redis://redis:6379/0" >> .env
-          echo "ALGORITHM=HS256" >> .env
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-          echo "REFRESH_SECRET_KEY=${{ secrets.REFRESH_SECRET_KEY }}" >> .env
-          echo "ADMIN_DEFAULT_PASSWORD=${{ secrets.ADMIN_DEFAULT_PASSWORD }}" >> .env
-          echo "MANAGER_DEFAULT_PASSWORD=${{ secrets.MANAGER_DEFAULT_PASSWORD }}" >> .env
-          echo "USER_DEFAULT_PASSWORD=${{ secrets.USER_DEFAULT_PASSWORD }}" >> .env
-          echo "ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}" >> .env
-          echo "REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}" >> .env
-          echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
-          echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
-          echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> .env
-          echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
-          echo "SMTP_TIMEOUT=${SMTP_TIMEOUT}" >> .env
-          echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
-          echo "TIMEZONE=${TIMEZONE}" >> .env
-          echo "SUPPORT_EMAIL=${SUPPORT_EMAIL}" >> .env
-          echo "SUPPORT_PHONE=${SUPPORT_PHONE}" >> .env
-          echo "DEBUG=${DEBUG}" >> .env
-          echo "CORS_ORIGINS=${CORS_ORIGINS}" >> .env
-          echo "TESTING=true" >> .env
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
 
-      - name: "Start test database"
-        run: docker compose up -d db_test
+      - name: Run tests
+        run: pytest -v tests/
 
-      - name: "Wait for database to be ready"
-        run: |
-          timeout 60 bash -c 'until docker compose exec -T db_test pg_isready -U postgres -d test_db; do sleep 2; done'
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
 
-      - name: "Running tests with Docker compose"
-        run: docker compose run --rm tests
+      - name: Build runtime and test containers
+        run: docker compose build backend tests

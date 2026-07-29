@@ -1,18 +1,58 @@
+x-postgres-env: &postgres-env
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+
+x-database-env: &database-env
+  DATABASE_URL: ${DATABASE_URL}
+
+x-redis-env: &redis-env
+  REDIS_URL: ${REDIS_URL}
+
+x-auth-env: &auth-env
+  ALGORITHM: ${ALGORITHM:-HS256}
+  SECRET_KEY: ${SECRET_KEY}
+  REFRESH_SECRET_KEY: ${REFRESH_SECRET_KEY}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+  REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+
+x-smtp-env: &smtp-env
+  SMTP_HOST: ${SMTP_HOST:-localhost}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_USER: ${SMTP_USER:-test_user}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-test_password}
+  SMTP_TIMEOUT: ${SMTP_TIMEOUT:-10}
+  EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
+
+x-seed-env: &seed-env
+  ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD}
+  MANAGER_DEFAULT_PASSWORD: ${MANAGER_DEFAULT_PASSWORD}
+  USER_DEFAULT_PASSWORD: ${USER_DEFAULT_PASSWORD}
+
+x-app-env: &app-env
+  TIMEZONE: ${TIMEZONE:-UTC}
+  SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@example.com}
+  SUPPORT_PHONE: ${SUPPORT_PHONE:-+1234567890}
+  DEBUG: ${DEBUG:-true}
+  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://localhost:5173"]}
+
+x-app-build: &app-build
+  context: .
+  target: production
+
 services:
   db:
     image: postgres:15-alpine
     container_name: booking_db
     restart: always
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      <<: *postgres-env
     ports:
       - "5436:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,43 +66,25 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   alembic:
-    build: .
+    build: *app-build
     container_name: booking_alembic
     command: alembic upgrade head
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - TEST_DATABASE_URL=${TEST_DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - DEBUG=${DEBUG}
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<: *database-env
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
 
   backend:
-    build: .
+    build: *app-build
     container_name: booking_api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
@@ -70,27 +92,13 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_TIMEOUT=${SMTP_TIMEOUT}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - TIMEZONE=${TIMEZONE}
-      - SUPPORT_EMAIL=${SUPPORT_EMAIL}
-      - SUPPORT_PHONE=${SUPPORT_PHONE}
-      - DEBUG=${DEBUG}
-      - CORS_ORIGINS=${CORS_ORIGINS}
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<:
+        - *database-env
+        - *redis-env
+        - *auth-env
+        - *smtp-env
+        - *seed-env
+        - *app-env
     depends_on:
       alembic:
         condition: service_completed_successfully
@@ -98,7 +106,8 @@ services:
         condition: service_healthy
 
   db_test:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: booking_test_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -112,122 +121,81 @@ services:
       retries: 5
 
   celery_worker:
-    build: .
+    build: *app-build
     container_name: booking_celery_worker
     command: celery -A app.workers.app worker --loglevel=info
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_TIMEOUT=${SMTP_TIMEOUT}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - TIMEZONE=${TIMEZONE}
-      - SUPPORT_EMAIL=${SUPPORT_EMAIL}
-      - SUPPORT_PHONE=${SUPPORT_PHONE}
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<:
+        - *database-env
+        - *redis-env
+        - *smtp-env
+        - *app-env
     depends_on:
-      db:
-        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   celery_beat:
-    build: .
+    build: *app-build
     container_name: booking_celery_beat
     command: celery -A app.workers.app beat --loglevel=info
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_TIMEOUT=${SMTP_TIMEOUT}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - TIMEZONE=${TIMEZONE}
-      - SUPPORT_EMAIL=${SUPPORT_EMAIL}
-      - SUPPORT_PHONE=${SUPPORT_PHONE}
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<:
+        - *database-env
+        - *redis-env
+        - *app-env
     depends_on:
-      db:
-        condition: service_healthy
+      alembic:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   flower:
-    build: .
+    profiles: ["monitoring"]
+    build: *app-build
     container_name: booking_flower
-    command: celery -A app.workers.app flower --port=5555
-    volumes:
-      - .:/app
+    command:
+      - celery
+      - -A
+      - app.workers.app
+      - flower
+      - --port=5555
+      - --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}
     ports:
       - "5555:5555"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_TIMEOUT=${SMTP_TIMEOUT}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - TIMEZONE=${TIMEZONE}
-      - SUPPORT_EMAIL=${SUPPORT_EMAIL}
-      - SUPPORT_PHONE=${SUPPORT_PHONE}
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<:
+        - *redis-env
+        - *app-env
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
   tests:
-    build: .
+    build:
+      context: .
+      target: test
     container_name: test_bookings
     depends_on:
       db_test:
         condition: service_healthy
     environment:
-      - TEST_DATABASE_URL=${TEST_DATABASE_URL}
-      - DATABASE_URL=${TEST_DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - ALGORITHM=${ALGORITHM}
-      - SECRET_KEY=${SECRET_KEY}
-      - REFRESH_SECRET_KEY=${REFRESH_SECRET_KEY}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - DEBUG=${DEBUG}
-      - TESTING=true
-      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-      - MANAGER_DEFAULT_PASSWORD=${MANAGER_DEFAULT_PASSWORD}
-      - USER_DEFAULT_PASSWORD=${USER_DEFAULT_PASSWORD}
+      <<:
+        - *database-env
+        - *redis-env
+        - *auth-env
+        - *smtp-env
+        - *seed-env
+        - *app-env
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL}
+      DATABASE_URL: ${TEST_DATABASE_URL}
+      TESTING: "true"
+      DEBUG: "false"
     restart: "no"
     command: pytest -v tests/
 
