@@ -1,0 +1,13 @@
+Hello {{ user_name }},
+
+Your booking has been successfully confirmed.
+
+Booking ID: #{{ booking_id }}
+Room: {{ room_name }}
+Check-in: {{ start_time | local_time }}
+Check-out: {{ end_time | local_time }}
+
+We look forward to welcoming you.
+
+Support: {{ support_email }}
+Phone: {{ support_phone }}

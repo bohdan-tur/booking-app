@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Booking Cancellation{% endblock %}
+
+{% block heading %}
+<span style="color:#dc2626;">Booking Cancelled</span>
+{% endblock %}
+
+{% block content %}
+
+<p>Your booking has been cancelled.</p>
+
+<p>
+    <strong>Booking ID:</strong>
+    #{{ booking_id }}
+</p>
+
+<p>
+    If you did not request this cancellation, please contact our support immediately.
+</p>
+
+{% endblock %}

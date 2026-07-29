@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Booking Reminder{% endblock %}
+
+{% block heading %}
+<span style="color:#2563eb;">Booking Reminder</span>
+{% endblock %}
+
+{% block content %}
+
+<p>
+    This is a reminder that your booking starts soon.
+</p>
+
+<table style="width:100%;border-collapse:collapse;margin:24px 0;">
+
+    <tr>
+        <td style="padding:10px;font-weight:bold;">Booking ID</td>
+        <td style="padding:10px;">#{{ booking_id }}</td>
+    </tr>
+
+    <tr style="background:#f8fafc;">
+        <td style="padding:10px;font-weight:bold;">Room</td>
+        <td style="padding:10px;">{{ room_name }}</td>
+    </tr>
+
+    <tr>
+        <td style="padding:10px;font-weight:bold;">Check-in</td>
+        <td style="padding:10px;">{{ start_time | local_time }}</td>
+    </tr>
+
+</table>
+
+<p>We wish you a pleasant stay.</p>
+
+{% endblock %}

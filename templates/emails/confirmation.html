@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Booking Confirmation{% endblock %}
+
+{% block heading %}
+<span style="color:#16a34a;">Booking Confirmation</span>
+{% endblock %}
+
+{% block content %}
+
+<p>Your booking has been successfully confirmed.</p>
+
+<table style="width:100%;border-collapse:collapse;margin:24px 0;">
+
+    <tr>
+        <td style="padding:10px;font-weight:bold;">Booking ID</td>
+        <td style="padding:10px;">#{{ booking_id }}</td>
+    </tr>
+
+    <tr style="background:#f8fafc;">
+        <td style="padding:10px;font-weight:bold;">Room</td>
+        <td style="padding:10px;">{{ room_name }}</td>
+    </tr>
+
+    <tr>
+        <td style="padding:10px;font-weight:bold;">Check-in</td>
+        <td style="padding:10px;">{{ start_time | local_time }}</td>
+    </tr>
+
+    <tr style="background:#f8fafc;">
+        <td style="padding:10px;font-weight:bold;">Check-out</td>
+        <td style="padding:10px;">{{ end_time | local_time }}</td>
+    </tr>
+
+</table>
+
+<p>We look forward to welcoming you.</p>
+
+{% endblock %}
