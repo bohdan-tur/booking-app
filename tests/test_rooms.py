@@ -6,6 +6,7 @@ from sqlalchemy import delete
 
 from app.core.security import create_access_token
 from app.models.booking_model import Bookings
+from app.models.booking_status import BookingStatus
 from app.models.room_model import Rooms
 
 
@@ -16,16 +17,16 @@ async def test_add_room_success(authenticated_client: AsyncClient):
         "description": "Nice room",
         "location": "Lviv",
         "name": "Standard Room",
-        "price": 1200,
-        "quantity": 5,
+        "price": "1200.00",
+        "total_units": 5,
     }
     response = await authenticated_client.post("/rooms/", json=room_data)
 
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "Standard Room"
-    assert data["price"] == 1200
-    assert data["quantity"] == 5
+    assert data["price"] == "1200.00"
+    assert data["total_units"] == 5
     assert "id" in data
     assert isinstance(data["id"], int)
 
@@ -55,11 +56,11 @@ async def test_get_all_available_rooms_success(
     await db_session.execute(delete(Rooms))
     await db_session.commit()
 
-    room_booked = await create_room(name="Booked Room", quantity=1)
-    room_free = await create_room(name="Free Room", quantity=1)
+    room_booked = await create_room(name="Booked Room", total_units=1)
+    room_free = await create_room(name="Free Room", total_units=1)
 
     user = await create_test_user(role="user")
-    now = datetime.now(UTC).replace(tzinfo=None)
+    now = datetime.now(UTC)
 
     await create_booking(
         user.id, room_booked.id, now - timedelta(days=1), now + timedelta(days=1)
@@ -101,7 +102,7 @@ async def test_get_all_booked_rooms_success(
 
     user = await create_test_user(role="user")
     room = await create_room(name="Booked 1")
-    now = datetime.now(UTC).replace(tzinfo=None)
+    now = datetime.now(UTC)
 
     await create_booking(
         user.id, room.id, now - timedelta(days=1), now + timedelta(days=1)
@@ -125,7 +126,7 @@ async def test_get_specific_booked_room_success(
 
     user = await create_test_user(role="user")
     room = await create_room(name="Booked 2")
-    now = datetime.now(UTC).replace(tzinfo=None)
+    now = datetime.now(UTC)
 
     await create_booking(
         user.id, room.id, now - timedelta(days=1), now + timedelta(days=1)
@@ -146,7 +147,7 @@ async def test_update_room_success(
         "name": "Updated Room",
         "capacity": 2,
         "location": "Odessa",
-        "quantity": 3,
+        "total_units": 3,
         "amenities": "Mini-bar",
     }
 
@@ -161,6 +162,8 @@ async def test_delete_room_success(
 
     response = await authenticated_client.delete(f"/rooms/{room.id}")
     assert response.status_code == 204
+    await db_session.refresh(room)
+    assert room.is_active is False
 
 
 async def test_get_rooms_catalog_not_found(client: AsyncClient, db_session):
@@ -207,7 +210,7 @@ async def test_update_room_not_found(authenticated_client: AsyncClient):
         "name": "Ghost Room",
         "capacity": 2,
         "location": "Odessa",
-        "quantity": 3,
+        "total_units": 3,
         "amenities": "Mini-bar",
     }
     response = await authenticated_client.patch("/rooms/999999", json=update_data)
@@ -228,7 +231,7 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "name": "Valid Room Name",
                 "capacity": 2,
                 "location": "Valid Location",
-                "quantity": 1,
+                "total_units": 1,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
@@ -240,7 +243,7 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "name": "Valid Room Name",
                 "capacity": 0,
                 "location": "Valid Location",
-                "quantity": 1,
+                "total_units": 1,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
@@ -252,11 +255,11 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "name": "Valid Room Name",
                 "capacity": 2,
                 "location": "Valid Location",
-                "quantity": -5,
+                "total_units": -5,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
-            "quantity",
+            "total_units",
         ),
         (
             {
@@ -264,7 +267,7 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "name": "",
                 "capacity": 2,
                 "location": "Valid Location",
-                "quantity": 1,
+                "total_units": 1,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
@@ -276,7 +279,7 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "name": "Valid Room Name",
                 "capacity": 2,
                 "location": "Valid Location",
-                "quantity": 1,
+                "total_units": 1,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
@@ -287,7 +290,7 @@ async def test_delete_room_not_found(authenticated_client: AsyncClient):
                 "price": 500,
                 "name": "Valid Room Name",
                 "capacity": 2,
-                "quantity": 1,
+                "total_units": 1,
                 "amenities": "WiFi",
                 "description": "Nice room",
             },
@@ -321,7 +324,7 @@ async def test_add_room_forbidden(client: AsyncClient, create_test_user):
         "location": "Lviv",
         "name": "New Room",
         "price": 1000,
-        "quantity": 1,
+        "total_units": 1,
     }
 
     response = await client.post(
@@ -345,7 +348,7 @@ async def test_update_room_forbidden(
         "name": "Hacked Room",
         "capacity": 2,
         "location": "Odessa",
-        "quantity": 3,
+        "total_units": 3,
         "amenities": "Mini-bar",
     }
 
@@ -355,6 +358,70 @@ async def test_update_room_forbidden(
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert response.status_code == 403
+
+
+async def test_room_inventory_cannot_decrease_with_active_bookings(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Capacity Guard", total_units=3)
+    start = datetime.now(UTC) + timedelta(days=10)
+    await create_booking(user.id, room.id, start, start + timedelta(days=2))
+    await create_booking(user.id, room.id, start, start + timedelta(days=2))
+
+    response = await authenticated_client.patch(
+        f"/rooms/{room.id}", json={"total_units": 1}
+    )
+
+    assert response.status_code == 409
+    await db_session.refresh(room)
+    assert room.total_units == 3
+
+
+async def test_cancelled_booking_does_not_prevent_inventory_decrease(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Cancelled Capacity", total_units=2)
+    start = datetime.now(UTC) + timedelta(days=10)
+    booking = await create_booking(user.id, room.id, start, start + timedelta(days=2))
+    booking.status = BookingStatus.CANCELLED
+    await db_session.commit()
+
+    response = await authenticated_client.patch(
+        f"/rooms/{room.id}", json={"total_units": 0}
+    )
+
+    assert response.status_code == 200
+    await db_session.refresh(room)
+    assert room.total_units == 0
+
+
+async def test_archiving_room_preserves_booking_history(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Archived History")
+    start = datetime.now(UTC) + timedelta(days=10)
+    booking = await create_booking(user.id, room.id, start, start + timedelta(days=2))
+
+    response = await authenticated_client.delete(f"/rooms/{room.id}")
+
+    assert response.status_code == 204
+    await db_session.refresh(booking)
+    assert booking.room_id == room.id
 
 
 async def test_delete_room_forbidden(

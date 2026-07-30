@@ -2,7 +2,7 @@ import asyncio
 import smtplib
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -10,6 +10,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.core.logger import logger
 from app.models.booking_model import Bookings
+from app.models.booking_status import BookingStatus
 from app.models.room_model import Rooms
 from app.models.user_model import Users
 from app.services.email import (
@@ -32,7 +33,7 @@ CelerySessionLocal = async_sessionmaker(
 
 
 def get_db_utc_time() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(UTC)
 
 
 @celery_app.task(bind=True, max_retries=3, name="process_booking_creation")
@@ -104,7 +105,7 @@ def process_booking_cancellation(self, booking_id: int):
 
 
 @celery_app.task
-def update_expired_bookings():
+def complete_finished_bookings():
     async def update_statuses():
         async with CelerySessionLocal() as session:
             try:
@@ -114,18 +115,16 @@ def update_expired_bookings():
                     update(Bookings)
                     .where(
                         Bookings.end_time < current_time,
-                        Bookings.status == "active",
+                        Bookings.status == BookingStatus.ACTIVE,
                     )
-                    .values(status="expired")
+                    .values(status=BookingStatus.COMPLETED)
                 )
 
                 result = await session.execute(stmt)
                 await session.commit()
 
                 if result.rowcount > 0:
-                    logger.info(
-                        f"Updated {result.rowcount} booking statuses to 'expired'"
-                    )
+                    logger.info(f"Completed {result.rowcount} finished bookings")
 
                 return result.rowcount
 
@@ -156,7 +155,7 @@ def send_daily_reminders():
                 .where(
                     Bookings.start_time >= start_of_tomorrow,
                     Bookings.start_time <= end_of_tomorrow,
-                    Bookings.status == "active",
+                    Bookings.status == BookingStatus.ACTIVE,
                 )
             )
 
@@ -197,34 +196,6 @@ def send_daily_reminders():
 
 
 @celery_app.task
-def cleanup_old_bookings():
-    async def cleanup():
-        async with CelerySessionLocal() as session:
-            try:
-                one_year_ago = get_db_utc_time() - timedelta(days=365)
-
-                stmt = delete(Bookings).where(
-                    Bookings.end_time < one_year_ago,
-                    Bookings.status == "expired",
-                )
-
-                result = await session.execute(stmt)
-                await session.commit()
-
-                if result.rowcount > 0:
-                    logger.info(f"Deleted {result.rowcount} old bookings")
-
-                return result.rowcount
-
-            except SQLAlchemyError:
-                logger.exception("Error cleaning up old bookings")
-                await session.rollback()
-                return 0
-
-    return asyncio.run(cleanup())
-
-
-@celery_app.task
 def generate_daily_statistics():
     async def process_statistics():
         async with CelerySessionLocal() as session:
@@ -245,7 +216,7 @@ def generate_daily_statistics():
             stmt_active = (
                 select(func.count())
                 .select_from(Bookings)
-                .where(Bookings.status == "active")
+                .where(Bookings.status == BookingStatus.ACTIVE)
             )
             active_bookings = await session.scalar(stmt_active)
 
@@ -254,7 +225,7 @@ def generate_daily_statistics():
                 .select_from(Bookings)
                 .where(
                     Bookings.end_time >= week_ago,
-                    Bookings.status == "completed",
+                    Bookings.status == BookingStatus.COMPLETED,
                 )
             )
             completed_bookings = await session.scalar(stmt_completed)

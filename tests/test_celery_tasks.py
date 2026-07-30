@@ -2,12 +2,11 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.workers.tasks import (
-    cleanup_old_bookings,
+    complete_finished_bookings,
     generate_daily_statistics,
     process_booking_cancellation,
     process_booking_creation,
     send_daily_reminders,
-    update_expired_bookings,
 )
 
 FIXED_NOW = datetime(2026, 7, 11, 12, 0, tzinfo=UTC)
@@ -67,7 +66,7 @@ def test_process_booking_cancellation_success(mock_send_email, mock_session_loca
 
 
 @patch("app.workers.tasks.CelerySessionLocal")
-def test_update_expired_bookings(mock_session_local):
+def test_complete_finished_bookings(mock_session_local):
     mock_session = AsyncMock()
     mock_session_local.return_value.__aenter__.return_value = mock_session
 
@@ -75,7 +74,7 @@ def test_update_expired_bookings(mock_session_local):
     mock_result.rowcount = 5
     mock_session.execute.return_value = mock_result
 
-    result = update_expired_bookings.run()
+    result = complete_finished_bookings.run()
 
     assert result == 5
     mock_session.commit.assert_called_once()
@@ -100,21 +99,6 @@ def test_send_daily_reminders(mock_send_email, mock_session_local):
 
     assert result == 1
     mock_send_email.assert_called_once()
-
-
-@patch("app.workers.tasks.CelerySessionLocal")
-def test_cleanup_old_bookings(mock_session_local):
-    mock_session = AsyncMock()
-    mock_session_local.return_value.__aenter__.return_value = mock_session
-
-    mock_result = MagicMock()
-    mock_result.rowcount = 10
-    mock_session.execute.return_value = mock_result
-
-    result = cleanup_old_bookings.run()
-
-    assert result == 10
-    mock_session.commit.assert_called_once()
 
 
 @patch("app.workers.tasks.CelerySessionLocal")

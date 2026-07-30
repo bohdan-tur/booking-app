@@ -29,8 +29,8 @@ celery_app.conf.update(
     timezone=settings.TIMEZONE,
     enable_utc=True,
     beat_schedule={
-        "update-expired-bookings": {
-            "task": "app.workers.tasks.update_expired_bookings",
+        "complete-finished-bookings": {
+            "task": "app.workers.tasks.complete_finished_bookings",
             "schedule": 3600.0,
         },
         "send-daily-reminders": {
