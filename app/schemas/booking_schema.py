@@ -1,10 +1,29 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    field_validator,
+    model_validator,
+)
+
+from app.models.booking_status import BookingStatus
+
+
+def normalize_to_utc(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("Datetime must include a timezone offset")
+    return value.astimezone(UTC)
 
 
 class BookingValidationBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("start_time", "end_time", mode="after", check_fields=False)
+    @classmethod
+    def normalize_dates(cls, value: datetime | None) -> datetime | None:
+        return normalize_to_utc(value) if value is not None else None
 
     @model_validator(mode="after")
     def check_dates(self):
@@ -22,15 +41,15 @@ class BookingCreate(BookingValidationBase):
         json_schema_extra={
             "example": {
                 "room_id": 1,
-                "start_time": "2024-07-15T14:00:00",
-                "end_time": "2024-07-20T11:00:00",
+                "start_time": "2026-08-15T14:00:00Z",
+                "end_time": "2026-08-20T11:00:00Z",
             }
         },
     )
 
     room_id: int
-    start_time: datetime
-    end_time: datetime
+    start_time: AwareDatetime
+    end_time: AwareDatetime
 
 
 class BookingUpdate(BookingValidationBase):
@@ -38,14 +57,14 @@ class BookingUpdate(BookingValidationBase):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "start_time": "2024-07-15T14:00:00",
-                "end_time": "2024-07-20T11:00:00",
+                "start_time": "2026-08-15T14:00:00Z",
+                "end_time": "2026-08-20T11:00:00Z",
             }
         },
     )
 
-    start_time: datetime | None = None
-    end_time: datetime | None = None
+    start_time: AwareDatetime | None = None
+    end_time: AwareDatetime | None = None
 
 
 class BookingOut(BaseModel):
@@ -54,6 +73,6 @@ class BookingOut(BaseModel):
     id: int
     room_id: int
     user_id: int
-    start_time: datetime
-    end_time: datetime
-    status: str = Field(default="Booked")
+    start_time: AwareDatetime
+    end_time: AwareDatetime
+    status: BookingStatus
