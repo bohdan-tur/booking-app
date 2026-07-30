@@ -1,5 +1,5 @@
 from pydantic import BaseModel
 
 
-class RefreshToken_Schema(BaseModel):
+class RefreshTokenRequest(BaseModel):
     refresh_token: str

@@ -1,45 +1,85 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import or_, select
 
-from app.api.dependencies import DbSession
+from app.api.dependencies import DbSession, get_current_user
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
-    create_refresh_token,
     hash_password,
+    is_token_invalidated,
     verify_password,
     verify_refresh_token,
 )
 from app.models.user_model import Users
-from app.schemas.token_schema import RefreshToken_Schema
-from app.schemas.user_schema import UserCreate, UserOut
+from app.schemas.token_schema import RefreshTokenRequest
+from app.schemas.user_schema import MAX_PASSWORD_LENGTH, UserCreate, UserOut
+from app.services.rate_limit_service import RateLimitExceeded, enforce_rate_limit
+from app.services.refresh_token_service import (
+    InvalidRefreshTokenError,
+    RefreshTokenService,
+)
 
 router = APIRouter(tags=["Auth"])
 
+DUMMY_PASSWORD_HASH = hash_password("dummy_password_used_for_timing_consistency")
+LOGIN_IP_LIMIT = 10
+LOGIN_ACCOUNT_LIMIT = 5
+REGISTRATION_IP_LIMIT = 3
+REFRESH_IP_LIMIT = 10
 
-@router.post("/", status_code=status.HTTP_200_OK)
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client is not None else "unknown"
+
+
+async def _enforce_auth_rate_limit(
+    bucket: str,
+    identifier: str,
+    limit: int,
+) -> None:
+    try:
+        await enforce_rate_limit(bucket, identifier, limit)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from None
+
+
+@router.post("/refresh", status_code=status.HTTP_200_OK)
 async def get_refresh_token(
-    db: DbSession, token_data: RefreshToken_Schema
+    request: Request,
+    db: DbSession,
+    token_data: RefreshTokenRequest,
 ) -> dict[str, str]:
+    await _enforce_auth_rate_limit(
+        "refresh-ip",
+        _client_ip(request),
+        REFRESH_IP_LIMIT,
+    )
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate refresh token",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    user_id_str = verify_refresh_token(token_data.refresh_token)
+    verified_token = verify_refresh_token(token_data.refresh_token)
 
-    if not user_id_str:
+    if verified_token is None:
         raise credentials_exception
 
-    query_result = await db.execute(select(Users).filter(Users.id == int(user_id_str)))
+    query_result = await db.execute(
+        select(Users).filter(Users.id == verified_token.user_id)
+    )
     user = query_result.scalars().first()
 
-    if user is None:
+    if user is None or is_token_invalidated(verified_token, user.tokens_valid_after):
         raise credentials_exception
 
     if not user.is_active:
@@ -48,11 +88,17 @@ async def get_refresh_token(
             detail="Account is deactivated. Please contact support.",
         )
 
+    try:
+        new_refresh_token = await RefreshTokenService(db).rotate(
+            token_data.refresh_token,
+            user.id,
+        )
+    except InvalidRefreshTokenError:
+        raise credentials_exception from None
+
     new_access_token = create_access_token(
         {"sub": str(user.id)}, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    new_refresh_token = create_refresh_token({"sub": str(user.id)})
-
     return {
         "access_token": new_access_token,
         "refresh_token": new_refresh_token,
@@ -61,7 +107,17 @@ async def get_refresh_token(
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserOut)
-async def add_user(user_data: UserCreate, db: DbSession) -> UserOut:
+async def add_user(
+    request: Request,
+    user_data: UserCreate,
+    db: DbSession,
+) -> UserOut:
+    await _enforce_auth_rate_limit(
+        "registration-ip",
+        _client_ip(request),
+        REGISTRATION_IP_LIMIT,
+    )
+
     query_result = await db.execute(
         select(Users).filter(Users.email == user_data.email)
     )
@@ -88,24 +144,45 @@ async def add_user(user_data: UserCreate, db: DbSession) -> UserOut:
 
 @router.post("/login", status_code=status.HTTP_200_OK)
 async def user_login(
-    user_credentials: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession
+    request: Request,
+    user_credentials: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: DbSession,
 ) -> dict[str, str]:
+    login = user_credentials.username
+    await _enforce_auth_rate_limit(
+        "login-ip",
+        _client_ip(request),
+        LOGIN_IP_LIMIT,
+    )
+    await _enforce_auth_rate_limit(
+        "login-account",
+        login.lower(),
+        LOGIN_ACCOUNT_LIMIT,
+    )
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if len(user_credentials.password) > MAX_PASSWORD_LENGTH:
+        raise credentials_exception
+
     query_result = await db.execute(
         select(Users).filter(
             or_(
-                Users.email == user_credentials.username,
-                Users.username == user_credentials.username,
+                Users.email == login.lower(),
+                Users.username == login,
             )
         )
     )
     user = query_result.scalars().first()
 
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    password_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+    password_is_valid = verify_password(user_credentials.password, password_hash)
+
+    if user is None or not password_is_valid:
+        raise credentials_exception
 
     if not user.is_active:
         raise HTTPException(
@@ -113,20 +190,32 @@ async def user_login(
             detail="Account is deactivated. Please contact support.",
         )
 
-    if not verify_password(user_credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     access_token = create_access_token(
         {"sub": str(user.id)}, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    refresh_token = await RefreshTokenService(db).create(user.id)
 
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
     }
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(token_data: RefreshTokenRequest, db: DbSession) -> None:
+    verified_token = verify_refresh_token(token_data.refresh_token)
+    if verified_token is not None:
+        await RefreshTokenService(db).revoke(
+            token_data.refresh_token,
+            verified_token.user_id,
+        )
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    db: DbSession,
+    user: Annotated[Users, Depends(get_current_user)],
+) -> None:
+    user.tokens_valid_after = datetime.now(UTC)
+    await RefreshTokenService(db).revoke_all(user.id)

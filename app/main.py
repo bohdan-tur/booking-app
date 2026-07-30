@@ -8,6 +8,7 @@ from app.api.routers import auth, bookings, rooms, system, users
 from app.core.config import Environment, settings
 from app.core.logger import logger
 from app.db.seed import seed_data
+from app.services.rate_limit_service import close_rate_limiter
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    await close_rate_limiter()
     logger.info("🛑 Shutting down API and cleaning up resources...")
 
 

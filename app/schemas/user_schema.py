@@ -1,4 +1,7 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
 
 
 class UserBase(BaseModel):
@@ -6,10 +9,18 @@ class UserBase(BaseModel):
 
     email: EmailStr
 
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, email: EmailStr) -> str:
+        return str(email).lower()
+
 
 class UserCreate(UserBase):
     username: str
-    password: str = Field(min_length=8)
+    password: str = Field(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+    )
 
 
 class UserOut(BaseModel):
@@ -22,7 +33,14 @@ class UserOut(BaseModel):
 
 
 class UserPasswordUpdate(BaseModel):
-    new_password: str = Field(min_length=8)
+    current_password: str = Field(
+        min_length=1,
+        max_length=MAX_PASSWORD_LENGTH,
+    )
+    new_password: str = Field(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+    )
 
 
 class UserRoleUpdate(BaseModel):

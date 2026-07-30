@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,10 +10,11 @@ from app.api.dependencies import (
     allow_admin_and_manager,
     get_current_user,
 )
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.role_model import Role
 from app.models.user_model import Users
 from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
+from app.services.refresh_token_service import RefreshTokenService
 
 router = APIRouter(tags=["Users"])
 
@@ -28,13 +30,20 @@ async def change_password(
     password_data: UserPasswordUpdate,
     user: Annotated[Users, Depends(get_current_user)],
 ) -> dict[str, str]:
-    new_hashed_password = hash_password(password_data.new_password)
-    await db.execute(
-        update(Users)
-        .filter(Users.id == user.id)
-        .values(password_hash=new_hashed_password)
-    )
-    await db.commit()
+    if not verify_password(password_data.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    if password_data.current_password == password_data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    user.password_hash = hash_password(password_data.new_password)
+    user.tokens_valid_after = datetime.now(UTC)
+    await RefreshTokenService(db).revoke_all(user.id)
     return {"status": "success"}
 
 

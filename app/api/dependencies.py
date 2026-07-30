@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import verify_access_token
+from app.core.security import is_token_invalidated, verify_access_token
 from app.db.database import get_db
 from app.models.role_model import Role
 from app.models.user_model import Users
@@ -24,15 +24,19 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    user_id_str = verify_access_token(token)
-    if not user_id_str:
+    verified_token = verify_access_token(token)
+    if verified_token is None:
         raise credentials_exception
 
-    stmt = select(Users).filter(Users.id == int(user_id_str))
+    stmt = select(Users).filter(Users.id == verified_token.user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user:
+    if (
+        user is None
+        or not user.is_active
+        or is_token_invalidated(verified_token, user.tokens_valid_after)
+    ):
         raise credentials_exception
 
     return user
