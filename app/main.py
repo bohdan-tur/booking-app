@@ -2,11 +2,10 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.routers import auth, bookings, rooms, system, users
-from app.core.config import settings
+from app.core.config import Environment, settings
 from app.core.logger import logger
 from app.db.seed import seed_data
 
@@ -16,11 +15,12 @@ async def lifespan(app: FastAPI):
 
     logger.info("🚀 Starting API and initializing resources...")
 
-    try:
-        await seed_data()
-        logger.info("✅ Database seeded successfully.")
-    except SQLAlchemyError:
-        logger.exception("❌ Error during database seeding")
+    if settings.ENVIRONMENT is Environment.development and settings.SEED_DEFAULT_USERS:
+        try:
+            await seed_data()
+            logger.info("✅ Database seeded successfully.")
+        except SQLAlchemyError:
+            logger.exception("❌ Error during database seeding")
 
     yield
 
@@ -30,15 +30,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Booking API",
     lifespan=lifespan,
-)
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.CORS_ORIGINS],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 

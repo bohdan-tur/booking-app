@@ -1,9 +1,9 @@
 from celery import Celery
 from celery.schedules import crontab
 
-from app.core.config import settings
+from app.core.config import Environment, settings
 
-if settings.TESTING:
+if settings.ENVIRONMENT is Environment.test:
     celery_app = Celery(
         "booking_app",
         broker="memory://",
