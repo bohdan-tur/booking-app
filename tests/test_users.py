@@ -41,7 +41,10 @@ async def test_get_user_by_id(authenticated_client: AsyncClient, db_session):
 
 
 async def test_change_password(authenticated_client: AsyncClient):
-    password_param = {"new_password": "new_secure_password123"}
+    password_param = {
+        "current_password": "password12345",
+        "new_password": "new_secure_password123",
+    }
     response = await authenticated_client.patch(
         "/users/me/password", json=password_param
     )
