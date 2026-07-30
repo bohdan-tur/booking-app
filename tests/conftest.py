@@ -110,7 +110,7 @@ async def create_room(db_session: AsyncSession):
         price=1000,
         capacity=2,
         location="Lviv",
-        quantity=1,
+        total_units=1,
         amenities="WiFi",
     ):
         room = Rooms(
@@ -118,7 +118,7 @@ async def create_room(db_session: AsyncSession):
             price=price,
             capacity=capacity,
             location=location,
-            quantity=quantity,
+            total_units=total_units,
             amenities=amenities,
         )
         db_session.add(room)
