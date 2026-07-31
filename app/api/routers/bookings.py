@@ -1,9 +1,13 @@
 from typing import Annotated
 
+from celery import Task
+from celery.exceptions import CeleryError
 from fastapi import APIRouter, Depends, HTTPException, status
+from kombu.exceptions import OperationalError as BrokerOperationalError
 from sqlalchemy import select
 
 from app.api.dependencies import DbSession, allow_admin_and_manager, get_current_user
+from app.core.logger import logger
 from app.models.booking import Booking
 from app.models.role import Role
 from app.models.user import User
@@ -18,6 +22,17 @@ from app.services.booking_service import (
 from app.workers.tasks import process_booking_cancellation, process_booking_creation
 
 router = APIRouter(tags=["Bookings"])
+
+
+def _enqueue_booking_notification(task: Task, *, booking_id: int) -> None:
+    try:
+        task.delay(booking_id=booking_id)
+    except (BrokerOperationalError, CeleryError):
+        logger.warning(
+            "Failed to enqueue booking notification: task=%s booking_id=%s",
+            task.name,
+            booking_id,
+        )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=BookingOut)
@@ -42,7 +57,7 @@ async def book_room(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
-    process_booking_creation.delay(booking_id=booking.id)
+    _enqueue_booking_notification(process_booking_creation, booking_id=booking.id)
 
     return booking
 
@@ -154,4 +169,7 @@ async def cancel_booking(
         ) from exc
 
     if changed:
-        process_booking_cancellation.delay(booking_id=booking.id)
+        _enqueue_booking_notification(
+            process_booking_cancellation,
+            booking_id=booking.id,
+        )

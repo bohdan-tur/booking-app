@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
+from kombu.exceptions import OperationalError as BrokerOperationalError
 from sqlalchemy import delete, func, select
 
 from app.core.security import create_access_token
@@ -38,6 +39,33 @@ async def test_book_room_success(
     assert "id" in data
 
     mock_delay.assert_called_once()
+
+
+@patch("app.api.routers.bookings.process_booking_creation.delay")
+async def test_booking_creation_survives_notification_broker_failure(
+    mock_delay,
+    authenticated_client: AsyncClient,
+    db_session,
+    create_room,
+):
+    mock_delay.side_effect = BrokerOperationalError("Redis unavailable")
+    room = await create_room(name="Broker Failure Room")
+    start = datetime.now(UTC) + timedelta(days=1)
+
+    response = await authenticated_client.post(
+        "/bookings/",
+        json={
+            "room_id": room.id,
+            "start_time": start.isoformat(),
+            "end_time": (start + timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 201
+    stored_booking = await db_session.get(Booking, response.json()["id"])
+    assert stored_booking is not None
+    assert stored_booking.status == BookingStatus.ACTIVE
+    mock_delay.assert_called_once_with(booking_id=stored_booking.id)
 
 
 async def test_get_all_bookings_success(
@@ -147,6 +175,41 @@ async def test_cancel_own_booking_success(
     mock_delay.assert_called_once()
     await db_session.refresh(booking)
     assert booking.status == BookingStatus.CANCELLED
+
+
+@patch("app.api.routers.bookings.process_booking_cancellation.delay")
+async def test_booking_cancellation_survives_notification_broker_failure(
+    mock_delay,
+    client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    mock_delay.side_effect = BrokerOperationalError("Redis unavailable")
+    user = await create_test_user(role="user")
+    room = await create_room(name="Cancellation Broker Failure Room")
+    start = datetime.now(UTC) + timedelta(days=1)
+    booking = await create_booking(
+        user.id,
+        room.id,
+        start,
+        start + timedelta(days=1),
+    )
+    user_token = create_access_token(
+        data={"sub": str(user.id), "role": "user"},
+        expires_delta=timedelta(minutes=5),
+    )
+
+    response = await client.delete(
+        f"/bookings/{booking.id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+
+    assert response.status_code == 204
+    await db_session.refresh(booking)
+    assert booking.status == BookingStatus.CANCELLED
+    mock_delay.assert_called_once_with(booking_id=booking.id)
 
 
 async def test_get_all_bookings_not_found(
