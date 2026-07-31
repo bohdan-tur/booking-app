@@ -76,21 +76,12 @@ def _send_message(message: EmailMessage) -> None:
 
             server.send_message(message)
 
-        logger.info(
-            "Email sent successfully",
-            extra={
-                "recipient": message["To"],
-                "subject": message["Subject"],
-            },
-        )
+        logger.info("Email sent successfully")
 
-    except (smtplib.SMTPException, OSError):
-        logger.exception(
-            "Failed to send email",
-            extra={
-                "recipient": message["To"],
-                "subject": message["Subject"],
-            },
+    except (smtplib.SMTPException, OSError) as exc:
+        logger.error(
+            "Failed to send email: error=%s",
+            type(exc).__name__,
         )
         raise
 

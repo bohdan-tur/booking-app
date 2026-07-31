@@ -29,16 +29,25 @@ def test_send_email_success(mock_smtp):
     mock_server.send_message.assert_called_once()
 
 
+@patch("app.services.email.logger.error")
 @patch("app.services.email.smtplib.SMTP")
-def test_send_email_failure(mock_smtp):
+def test_send_email_failure_does_not_log_personal_data(mock_smtp, mock_log_error):
     mock_smtp.side_effect = smtplib.SMTPException("SMTP Error")
+    recipient = "private.recipient@example.com"
+    subject = "Private booking subject"
+    body = "Private booking content"
 
     with pytest.raises(smtplib.SMTPException):
-        send_email(
-            to_email="test@example.com",
-            subject="Test Subject",
-            body="Test Body",
-        )
+        send_email(to_email=recipient, subject=subject, body=body)
+
+    mock_log_error.assert_called_once_with(
+        "Failed to send email: error=%s",
+        "SMTPException",
+    )
+    log_arguments = repr(mock_log_error.call_args)
+    assert recipient not in log_arguments
+    assert subject not in log_arguments
+    assert body not in log_arguments
 
 
 @patch("app.services.email.smtplib.SMTP")
