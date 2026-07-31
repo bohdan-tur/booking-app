@@ -4,7 +4,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, func, select
 
-from app.api.dependencies import DbSession, allow_admin, allow_admin_and_manager
+from app.api.dependencies import (
+    DbSession,
+    Pagination,
+    allow_admin,
+    allow_admin_and_manager,
+)
 from app.models.booking import Booking
 from app.models.booking_status import BLOCKING_BOOKING_STATUSES
 from app.models.room import Room
@@ -42,21 +47,22 @@ def resolve_period(
 
 
 @router.get("/all", status_code=status.HTTP_200_OK, response_model=list[RoomOut])
-async def get_rooms_catalog(db: DbSession) -> list[RoomOut]:
-    query = select(Room).where(Room.is_active.is_(True))
+async def get_rooms_catalog(db: DbSession, pagination: Pagination) -> list[RoomOut]:
+    query = (
+        select(Room)
+        .where(Room.is_active.is_(True))
+        .order_by(Room.id)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
     rooms = await db.execute(query)
-    res = rooms.scalars().all()
-
-    if not res:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No rooms found in the hotel"
-        )
-    return res
+    return rooms.scalars().all()
 
 
 @router.get("/available", status_code=status.HTTP_200_OK, response_model=list[RoomOut])
 async def get_all_not_booked_rooms(
     db: DbSession,
+    pagination: Pagination,
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
 ) -> list[RoomOut]:
@@ -85,18 +91,13 @@ async def get_all_not_booked_rooms(
             Room.is_active.is_(True),
             (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0)) > 0,
         )
+        .order_by(Room.id)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
     )
 
     rooms = await db.execute(query)
-    res = rooms.scalars().all()
-
-    if not res:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="There aren't available rooms for the specified period",
-        )
-
-    return res
+    return rooms.scalars().all()
 
 
 @router.get(
@@ -159,6 +160,7 @@ async def get_not_booked_room(
 )
 async def get_all_booked_rooms(
     db: DbSession,
+    pagination: Pagination,
     start_time: datetime | None = Query(default=None),
     end_time: datetime | None = Query(default=None),
 ) -> list[RoomOut]:
@@ -176,16 +178,12 @@ async def get_all_booked_rooms(
             ),
         )
         .distinct()
+        .order_by(Room.id)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
     )
     rooms = await db.execute(query)
-    res = rooms.scalars().all()
-
-    if not res:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="There aren't booked rooms for the specified period",
-        )
-    return res
+    return rooms.scalars().all()
 
 
 @router.get(
@@ -242,10 +240,11 @@ async def add_room(room_data: RoomCreate, db: DbSession) -> RoomOut:
     "/{room_id}",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
+    response_model=RoomOut,
 )
 async def change_room(
     db: DbSession, room_id: Annotated[int, Path(gt=0)], room_data: RoomUpdate
-) -> dict[str, str]:
+) -> RoomOut:
     update_data = room_data.model_dump(exclude_unset=True)
 
     if not update_data:
@@ -280,7 +279,8 @@ async def change_room(
     for field, value in update_data.items():
         setattr(room, field, value)
     await db.commit()
-    return {"status": "success"}
+    await db.refresh(room)
+    return room
 
 
 @router.delete(

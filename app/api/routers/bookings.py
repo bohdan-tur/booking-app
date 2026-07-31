@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from kombu.exceptions import OperationalError as BrokerOperationalError
 from sqlalchemy import select
 
-from app.api.dependencies import DbSession, allow_admin_and_manager, get_current_user
+from app.api.dependencies import (
+    DbSession,
+    Pagination,
+    allow_admin_and_manager,
+    get_current_user,
+)
 from app.core.logger import logger
 from app.models.booking import Booking
 from app.models.role import Role
@@ -68,16 +73,15 @@ async def book_room(
     dependencies=[Depends(allow_admin_and_manager)],
     response_model=list[BookingOut],
 )
-async def get_all_bookings(db: DbSession) -> list[BookingOut]:
-    bookings = await db.execute(select(Booking))
-    result = bookings.scalars().all()
-
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="There are not any bookings."
-        )
-
-    return result
+async def get_all_bookings(db: DbSession, pagination: Pagination) -> list[BookingOut]:
+    query = (
+        select(Booking)
+        .order_by(Booking.id)
+        .offset(pagination.offset)
+        .limit(pagination.limit)
+    )
+    bookings = await db.execute(query)
+    return bookings.scalars().all()
 
 
 @router.get("/{booking_id}", status_code=status.HTTP_200_OK, response_model=BookingOut)
@@ -110,10 +114,11 @@ async def get_single_booking(
     "/{booking_id}",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(allow_admin_and_manager)],
+    response_model=BookingOut,
 )
 async def update_booking(
     booking_id: int, booking_to_update: BookingUpdate, db: DbSession
-) -> dict[str, str]:
+) -> BookingOut:
     update_data = booking_to_update.model_dump(exclude_unset=True)
 
     if not update_data:
@@ -123,7 +128,7 @@ async def update_booking(
         )
 
     try:
-        await BookingService(db).update(booking_id, booking_to_update)
+        booking = await BookingService(db).update(booking_id, booking_to_update)
     except NotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -138,7 +143,7 @@ async def update_booking(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
 
-    return {"status": "success"}
+    return booking
 
 
 @router.delete("/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)

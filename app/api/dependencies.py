@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,19 @@ from app.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+class PaginationParams:
+    def __init__(
+        self,
+        offset: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    ) -> None:
+        self.offset = offset
+        self.limit = limit
+
+
+Pagination = Annotated[PaginationParams, Depends()]
 
 
 async def get_current_user(

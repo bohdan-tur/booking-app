@@ -6,7 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class RoomBase(BaseModel):
     name: str = Field(min_length=3, max_length=100)
     description: str | None = None
-    price: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    price: Decimal = Field(
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Room price in USD",
+    )
     capacity: int = Field(ge=1, le=10)
     amenities: str | None = None
     total_units: int = Field(ge=0)
@@ -40,7 +45,13 @@ class RoomOut(RoomBase):
 class RoomUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=3, max_length=100)
     description: str | None = None
-    price: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    price: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Room price in USD",
+    )
     capacity: int | None = Field(default=None, ge=1, le=10)
     amenities: str | None = None
     total_units: int | None = Field(default=None, ge=0)
