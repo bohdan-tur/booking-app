@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import create_refresh_token
-from app.models.refresh_token_model import RefreshToken
+from app.models.refresh_token import RefreshToken
 
 
 class InvalidRefreshTokenError(Exception):

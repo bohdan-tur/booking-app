@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.booking_model import Bookings
+from app.models.booking import Booking
 from app.models.booking_status import BLOCKING_BOOKING_STATUSES, BookingStatus
-from app.models.role_model import Role
-from app.models.room_model import Rooms
-from app.schemas.booking_schema import BookingCreate, BookingUpdate
+from app.models.role import Role
+from app.models.room import Room
+from app.schemas.booking import BookingCreate, BookingUpdate
 
 
 class NotFoundError(Exception):
@@ -42,20 +42,20 @@ def validate_booking_period(start_time: datetime, end_time: datetime) -> None:
 
 async def ensure_room_available(
     db: AsyncSession,
-    room: Rooms,
+    room: Room,
     start_time: datetime,
     end_time: datetime,
     *,
     exclude_booking_id: int | None = None,
 ) -> None:
-    query = select(func.count(Bookings.id)).where(
-        Bookings.room_id == room.id,
-        Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-        Bookings.start_time < end_time,
-        Bookings.end_time > start_time,
+    query = select(func.count(Booking.id)).where(
+        Booking.room_id == room.id,
+        Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+        Booking.start_time < end_time,
+        Booking.end_time > start_time,
     )
     if exclude_booking_id is not None:
-        query = query.where(Bookings.id != exclude_booking_id)
+        query = query.where(Booking.id != exclude_booking_id)
 
     booked_count = await db.scalar(query) or 0
     if booked_count >= room.total_units:
@@ -66,7 +66,7 @@ class BookingService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, booking_data: BookingCreate, user_id: int) -> Bookings:
+    async def create(self, booking_data: BookingCreate, user_id: int) -> Booking:
         validate_booking_period(booking_data.start_time, booking_data.end_time)
         room = await self._lock_room(booking_data.room_id)
 
@@ -77,7 +77,7 @@ class BookingService:
             booking_data.end_time,
         )
 
-        booking = Bookings(
+        booking = Booking(
             room_id=room.id,
             user_id=user_id,
             start_time=booking_data.start_time,
@@ -89,7 +89,7 @@ class BookingService:
         await self.db.refresh(booking)
         return booking
 
-    async def update(self, booking_id: int, booking_data: BookingUpdate) -> Bookings:
+    async def update(self, booking_id: int, booking_data: BookingUpdate) -> Booking:
         booking = await self._lock_booking(booking_id)
         if booking.status != BookingStatus.ACTIVE:
             raise ConflictError("Only active bookings can be updated")
@@ -119,7 +119,7 @@ class BookingService:
         *,
         requester_id: int,
         requester_role: Role,
-    ) -> tuple[Bookings, bool]:
+    ) -> tuple[Booking, bool]:
         booking = await self._lock_booking(booking_id)
         if booking.user_id != requester_id and requester_role not in (
             Role.admin,
@@ -138,17 +138,17 @@ class BookingService:
         await self.db.refresh(booking)
         return booking, True
 
-    async def _lock_booking(self, booking_id: int) -> Bookings:
+    async def _lock_booking(self, booking_id: int) -> Booking:
         booking = await self.db.scalar(
-            select(Bookings).where(Bookings.id == booking_id).with_for_update()
+            select(Booking).where(Booking.id == booking_id).with_for_update()
         )
         if booking is None:
             raise NotFoundError("Booking not found")
         return booking
 
-    async def _lock_room(self, room_id: int, *, require_active: bool = True) -> Rooms:
+    async def _lock_room(self, room_id: int, *, require_active: bool = True) -> Room:
         room = await self.db.scalar(
-            select(Rooms).where(Rooms.id == room_id).with_for_update()
+            select(Room).where(Room.id == room_id).with_for_update()
         )
         if room is None or (require_active and not room.is_active):
             raise NotFoundError("Room not found")

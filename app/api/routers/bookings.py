@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from app.api.dependencies import DbSession, allow_admin_and_manager, get_current_user
-from app.models.booking_model import Bookings
-from app.models.role_model import Role
-from app.models.user_model import Users
-from app.schemas.booking_schema import BookingCreate, BookingOut, BookingUpdate
+from app.models.booking import Booking
+from app.models.role import Role
+from app.models.user import User
+from app.schemas.booking import BookingCreate, BookingOut, BookingUpdate
 from app.services.booking_service import (
     BookingService,
     ConflictError,
@@ -24,7 +24,7 @@ router = APIRouter(tags=["Bookings"])
 async def book_room(
     booking_data: BookingCreate,
     db: DbSession,
-    user: Annotated[Users, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> BookingOut:
     try:
         booking = await BookingService(db).create(booking_data, user.id)
@@ -54,7 +54,7 @@ async def book_room(
     response_model=list[BookingOut],
 )
 async def get_all_bookings(db: DbSession) -> list[BookingOut]:
-    bookings = await db.execute(select(Bookings))
+    bookings = await db.execute(select(Booking))
     result = bookings.scalars().all()
 
     if not result:
@@ -69,9 +69,9 @@ async def get_all_bookings(db: DbSession) -> list[BookingOut]:
 async def get_single_booking(
     booking_id: int,
     db: DbSession,
-    current_user: Annotated[Users, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> BookingOut:
-    bookings = await db.execute(select(Bookings).filter(Bookings.id == booking_id))
+    bookings = await db.execute(select(Booking).filter(Booking.id == booking_id))
     result = bookings.scalars().first()
 
     if result is None:
@@ -130,7 +130,7 @@ async def update_booking(
 async def cancel_booking(
     booking_id: int,
     db: DbSession,
-    current_user: Annotated[Users, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     try:
         booking, changed = await BookingService(db).cancel(

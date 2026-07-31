@@ -4,7 +4,7 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
 from app.api.dependencies import DbSession
-from app.schemas.system_schema import (
+from app.schemas.system import (
     HealthCheckComponent,
     LivenessResponse,
     ReadinessResponse,

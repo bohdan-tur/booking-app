@@ -7,10 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
 if TYPE_CHECKING:
-    from app.models.booking_model import Bookings
+    from app.models.booking import Booking
 
 
-class Rooms(Base):
+class Room(Base):
     __tablename__ = "rooms"
     __table_args__ = (
         CheckConstraint("price > 0", name="ck_rooms_positive_price"),
@@ -30,4 +30,4 @@ class Rooms(Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
 
-    bookings: Mapped[list["Bookings"]] = relationship("Bookings", back_populates="room")
+    bookings: Mapped[list["Booking"]] = relationship("Booking", back_populates="room")

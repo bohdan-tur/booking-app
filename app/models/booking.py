@@ -8,11 +8,11 @@ from app.db.database import Base
 from app.models.booking_status import BookingStatus
 
 if TYPE_CHECKING:
-    from app.models.room_model import Rooms
-    from app.models.user_model import Users
+    from app.models.room import Room
+    from app.models.user import User
 
 
-class Bookings(Base):
+class Booking(Base):
     __tablename__ = "bookings"
     __table_args__ = (
         CheckConstraint("start_time < end_time", name="ck_bookings_valid_period"),
@@ -41,5 +41,5 @@ class Bookings(Base):
         server_default=text("'ACTIVE'"),
     )
 
-    room: Mapped["Rooms"] = relationship("Rooms", back_populates="bookings")
-    user: Mapped["Users"] = relationship("Users", back_populates="bookings")
+    room: Mapped["Room"] = relationship("Room", back_populates="bookings")
+    user: Mapped["User"] = relationship("User", back_populates="bookings")

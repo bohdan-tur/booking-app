@@ -11,16 +11,16 @@ from app.api.dependencies import (
     get_current_user,
 )
 from app.core.security import hash_password, verify_password
-from app.models.role_model import Role
-from app.models.user_model import Users
-from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
+from app.models.role import Role
+from app.models.user import User
+from app.schemas.user import UserOut, UserPasswordUpdate, UserRoleUpdate
 from app.services.refresh_token_service import RefreshTokenService
 
 router = APIRouter(tags=["Users"])
 
 
 @router.get("/me", status_code=status.HTTP_200_OK, response_model=UserOut)
-async def get_my_info(user: Annotated[Users, Depends(get_current_user)]) -> UserOut:
+async def get_my_info(user: Annotated[User, Depends(get_current_user)]) -> UserOut:
     return user
 
 
@@ -28,7 +28,7 @@ async def get_my_info(user: Annotated[Users, Depends(get_current_user)]) -> User
 async def change_password(
     db: DbSession,
     password_data: UserPasswordUpdate,
-    user: Annotated[Users, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
     if not verify_password(password_data.current_password, user.password_hash):
         raise HTTPException(
@@ -54,7 +54,7 @@ async def change_password(
     response_model=list[UserOut],
 )
 async def get_all_users(db: DbSession) -> list[UserOut]:
-    query_result = await db.execute(select(Users))
+    query_result = await db.execute(select(User))
     return query_result.scalars().all()
 
 
@@ -65,7 +65,7 @@ async def get_all_users(db: DbSession) -> list[UserOut]:
     response_model=UserOut,
 )
 async def get_user_info(db: DbSession, user_id: int) -> UserOut:
-    user = await db.execute(select(Users).filter(Users.id == user_id))
+    user = await db.execute(select(User).filter(User.id == user_id))
     result_user = user.scalars().first()
 
     if not result_user:
@@ -83,7 +83,7 @@ async def get_user_info(db: DbSession, user_id: int) -> UserOut:
 async def change_role(
     role_data: UserRoleUpdate, user_id: int, db: DbSession
 ) -> dict[str, str]:
-    user_to_change = await db.execute(select(Users).filter(Users.id == user_id))
+    user_to_change = await db.execute(select(User).filter(User.id == user_id))
     user = user_to_change.scalar_one_or_none()
 
     if not user:
@@ -98,7 +98,7 @@ async def change_role(
         )
 
     await db.execute(
-        update(Users).filter(Users.id == user_id).values(role=role_data.role)
+        update(User).filter(User.id == user_id).values(role=role_data.role)
     )
     await db.commit()
     return {"status": "success"}
@@ -110,7 +110,7 @@ async def change_role(
     dependencies=[Depends(allow_admin)],
 )
 async def delete_user(db: DbSession, user_id: int) -> None:
-    user_to_delete = await db.execute(select(Users).filter(Users.id == user_id))
+    user_to_delete = await db.execute(select(User).filter(User.id == user_id))
     user = user_to_delete.scalar_one_or_none()
 
     if not user:
@@ -124,7 +124,7 @@ async def delete_user(db: DbSession, user_id: int) -> None:
             detail="Cannot delete admin",
         )
 
-    await db.execute(delete(Users).filter(Users.id == user_id).returning(Users.id))
+    await db.execute(delete(User).filter(User.id == user_id).returning(User.id))
     await db.commit()
 
 
@@ -134,7 +134,7 @@ async def delete_user(db: DbSession, user_id: int) -> None:
     dependencies=[Depends(allow_admin)],
 )
 async def deactivate_user(db: DbSession, user_id: int) -> dict[str, str]:
-    user_to_deactivate = await db.execute(select(Users).filter(Users.id == user_id))
+    user_to_deactivate = await db.execute(select(User).filter(User.id == user_id))
     user = user_to_deactivate.scalar_one_or_none()
 
     if not user:
@@ -149,10 +149,10 @@ async def deactivate_user(db: DbSession, user_id: int) -> dict[str, str]:
         )
 
     result = await db.execute(
-        update(Users)
-        .filter(Users.id == user_id)
+        update(User)
+        .filter(User.id == user_id)
         .values(is_active=False)
-        .returning(Users.id)
+        .returning(User.id)
     )
 
     updated_user_id = result.scalar_one_or_none()
@@ -172,7 +172,7 @@ async def deactivate_user(db: DbSession, user_id: int) -> dict[str, str]:
     dependencies=[Depends(allow_admin)],
 )
 async def activate_user(db: DbSession, user_id: int) -> dict[str, str]:
-    user_to_activate = await db.execute(select(Users).filter(Users.id == user_id))
+    user_to_activate = await db.execute(select(User).filter(User.id == user_id))
     user = user_to_activate.scalar_one_or_none()
 
     if not user:
@@ -187,10 +187,10 @@ async def activate_user(db: DbSession, user_id: int) -> dict[str, str]:
         )
 
     result = await db.execute(
-        update(Users)
-        .filter(Users.id == user_id)
+        update(User)
+        .filter(User.id == user_id)
         .values(is_active=True)
-        .returning(Users.id)
+        .returning(User.id)
     )
 
     updated_user_id = result.scalar_one_or_none()

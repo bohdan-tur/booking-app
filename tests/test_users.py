@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy import insert
 
 from app.core.security import create_access_token
-from app.models.user_model import Users
+from app.models.user import User
 
 
 async def test_get_user_me(authenticated_client: AsyncClient):
@@ -23,14 +23,14 @@ async def test_get_all_users(authenticated_client: AsyncClient):
 async def test_get_user_by_id(authenticated_client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="TestPerson",
                 email="test_person@example.com",
                 password_hash="securepassword123",
                 role="user",
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -56,14 +56,14 @@ async def test_change_password(authenticated_client: AsyncClient):
 async def test_change_user_role(authenticated_client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="role_user",
                 email="role@example.com",
                 password_hash="hash",
                 role="user",
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -78,14 +78,14 @@ async def test_change_user_role(authenticated_client: AsyncClient, db_session):
 async def test_delete_user_by_admin(authenticated_client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="to_delete",
                 email="delete@me.com",
                 password_hash="hash",
                 role="user",
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -114,14 +114,14 @@ async def test_delete_user_not_found(authenticated_client: AsyncClient):
 async def test_change_user_role_forbidden(client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="normal_user",
                 email="normal@example.com",
                 password_hash="hash",
                 role="user",
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -140,14 +140,14 @@ async def test_change_user_role_forbidden(client: AsyncClient, db_session):
 async def test_delete_user_forbidden(client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="another_user",
                 email="another@example.com",
                 password_hash="hash",
                 role="user",
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -164,7 +164,7 @@ async def test_delete_user_forbidden(client: AsyncClient, db_session):
 async def test_deactivate_user_success(authenticated_client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="user_to_deact",
                 email="deact@booking.com",
@@ -172,7 +172,7 @@ async def test_deactivate_user_success(authenticated_client: AsyncClient, db_ses
                 role="user",
                 is_active=True,
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -188,7 +188,7 @@ async def test_deactivate_admin_forbidden(
 ):
     admin_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="admin_to_deact",
                 email="admin_deact@booking.com",
@@ -196,7 +196,7 @@ async def test_deactivate_admin_forbidden(
                 role="admin",
                 is_active=True,
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -215,7 +215,7 @@ async def test_deactivate_user_not_found(authenticated_client: AsyncClient):
 async def test_activate_user_success(authenticated_client: AsyncClient, db_session):
     new_user_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="user_to_act",
                 email="act@booking.com",
@@ -223,7 +223,7 @@ async def test_activate_user_success(authenticated_client: AsyncClient, db_sessi
                 role="user",
                 is_active=False,
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()
@@ -237,7 +237,7 @@ async def test_activate_user_success(authenticated_client: AsyncClient, db_sessi
 async def test_activate_admin_forbidden(authenticated_client: AsyncClient, db_session):
     admin_id = (
         await db_session.execute(
-            insert(Users)
+            insert(User)
             .values(
                 username="admin_to_act",
                 email="admin_act@booking.com",
@@ -245,7 +245,7 @@ async def test_activate_admin_forbidden(authenticated_client: AsyncClient, db_se
                 role="admin",
                 is_active=False,
             )
-            .returning(Users.id)
+            .returning(User.id)
         )
     ).scalar()
     await db_session.commit()

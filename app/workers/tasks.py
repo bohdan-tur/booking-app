@@ -9,10 +9,10 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.models.booking_model import Bookings
+from app.models.booking import Booking
 from app.models.booking_status import BookingStatus
-from app.models.room_model import Rooms
-from app.models.user_model import Users
+from app.models.room import Room
+from app.models.user import User
 from app.services.email import (
     send_booking_cancellation_email,
     send_booking_confirmation_email,
@@ -41,10 +41,10 @@ def process_booking_creation(self, booking_id: int):
     async def process():
         async with CelerySessionLocal() as session:
             stmt = (
-                select(Bookings, Users, Rooms)
-                .join(Users)
-                .join(Rooms)
-                .where(Bookings.id == booking_id)
+                select(Booking, User, Room)
+                .join(User)
+                .join(Room)
+                .where(Booking.id == booking_id)
             )
             result = await session.execute(stmt)
             booking_data = result.first()
@@ -79,7 +79,7 @@ def process_booking_creation(self, booking_id: int):
 def process_booking_cancellation(self, booking_id: int):
     async def process():
         async with CelerySessionLocal() as session:
-            stmt = select(Users).join(Bookings).where(Bookings.id == booking_id)
+            stmt = select(User).join(Booking).where(Booking.id == booking_id)
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
 
@@ -112,10 +112,10 @@ def complete_finished_bookings():
                 current_time = get_db_utc_time()
 
                 stmt = (
-                    update(Bookings)
+                    update(Booking)
                     .where(
-                        Bookings.end_time < current_time,
-                        Bookings.status == BookingStatus.ACTIVE,
+                        Booking.end_time < current_time,
+                        Booking.status == BookingStatus.ACTIVE,
                     )
                     .values(status=BookingStatus.COMPLETED)
                 )
@@ -149,13 +149,13 @@ def send_daily_reminders():
             )
 
             stmt = (
-                select(Bookings, Users, Rooms)
-                .join(Users)
-                .join(Rooms)
+                select(Booking, User, Room)
+                .join(User)
+                .join(Room)
                 .where(
-                    Bookings.start_time >= start_of_tomorrow,
-                    Bookings.start_time <= end_of_tomorrow,
-                    Bookings.status == BookingStatus.ACTIVE,
+                    Booking.start_time >= start_of_tomorrow,
+                    Booking.start_time <= end_of_tomorrow,
+                    Booking.status == BookingStatus.ACTIVE,
                 )
             )
 
@@ -205,32 +205,32 @@ def generate_daily_statistics():
 
             stmt_today = (
                 select(func.count())
-                .select_from(Bookings)
+                .select_from(Booking)
                 .where(
-                    Bookings.start_time >= today,
-                    Bookings.start_time < tomorrow,
+                    Booking.start_time >= today,
+                    Booking.start_time < tomorrow,
                 )
             )
             today_bookings = await session.scalar(stmt_today)
 
             stmt_active = (
                 select(func.count())
-                .select_from(Bookings)
-                .where(Bookings.status == BookingStatus.ACTIVE)
+                .select_from(Booking)
+                .where(Booking.status == BookingStatus.ACTIVE)
             )
             active_bookings = await session.scalar(stmt_active)
 
             stmt_completed = (
                 select(func.count())
-                .select_from(Bookings)
+                .select_from(Booking)
                 .where(
-                    Bookings.end_time >= week_ago,
-                    Bookings.status == BookingStatus.COMPLETED,
+                    Booking.end_time >= week_ago,
+                    Booking.status == BookingStatus.COMPLETED,
                 )
             )
             completed_bookings = await session.scalar(stmt_completed)
 
-            stmt_admins = select(Users).where(Users.role == "admin")
+            stmt_admins = select(User).where(User.role == "admin")
             admins = (await session.execute(stmt_admins)).scalars().all()
 
         report = f"""

@@ -1,8 +1,8 @@
-from .booking_model import Bookings
+from .booking import Booking
 from .booking_status import BookingStatus
-from .refresh_token_model import RefreshToken
-from .role_model import Role
-from .room_model import Rooms
-from .user_model import Users
+from .refresh_token import RefreshToken
+from .role import Role
+from .room import Room
+from .user import User
 
-__all__ = ["BookingStatus", "Bookings", "RefreshToken", "Role", "Rooms", "Users"]
+__all__ = ["Booking", "BookingStatus", "RefreshToken", "Role", "Room", "User"]
