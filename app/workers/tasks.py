@@ -1,8 +1,12 @@
 import asyncio
 import smtplib
 from datetime import UTC, datetime, timedelta
+from typing import NoReturn
 
+from celery import Task
+from celery.utils.time import get_exponential_backoff_interval
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import OperationalError as DatabaseOperationalError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -31,9 +35,57 @@ CelerySessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+NOTIFICATION_RETRY_BASE_SECONDS = 60
+NOTIFICATION_RETRY_MAX_SECONDS = 15 * 60
+SMTP_TRANSIENT_MIN_CODE = 400
+SMTP_PERMANENT_MIN_CODE = 500
+
 
 def get_db_utc_time() -> datetime:
     return datetime.now(UTC)
+
+
+def _is_transient_notification_error(exc: Exception) -> bool:
+    if isinstance(exc, smtplib.SMTPResponseException):
+        return SMTP_TRANSIENT_MIN_CODE <= exc.smtp_code < SMTP_PERMANENT_MIN_CODE
+    if isinstance(exc, smtplib.SMTPServerDisconnected):
+        return True
+    if isinstance(exc, smtplib.SMTPException):
+        return False
+    return isinstance(exc, (OSError, DatabaseOperationalError))
+
+
+def _handle_notification_failure(
+    task: Task,
+    exc: Exception,
+    *,
+    booking_id: int,
+) -> NoReturn:
+    if not _is_transient_notification_error(exc):
+        logger.error(
+            "Permanent booking notification failure: task=%s booking_id=%s error=%s",
+            task.name,
+            booking_id,
+            type(exc).__name__,
+        )
+        raise exc
+
+    countdown = max(
+        1,
+        get_exponential_backoff_interval(
+            factor=NOTIFICATION_RETRY_BASE_SECONDS,
+            retries=task.request.retries,
+            maximum=NOTIFICATION_RETRY_MAX_SECONDS,
+            full_jitter=True,
+        ),
+    )
+    logger.warning(
+        "Transient booking notification failure: task=%s booking_id=%s retry=%s",
+        task.name,
+        booking_id,
+        task.request.retries + 1,
+    )
+    raise task.retry(countdown=countdown, exc=exc) from exc
 
 
 @celery_app.task(bind=True, max_retries=3, name="process_booking_creation")
@@ -54,6 +106,13 @@ def process_booking_creation(self, booking_id: int):
                 return {"status": "error", "message": "Booking not found"}
 
             booking, user, room = booking_data
+            if booking.status != BookingStatus.ACTIVE:
+                logger.info(
+                    "Skipped booking confirmation: booking_id=%s status=%s",
+                    booking_id,
+                    booking.status.value,
+                )
+                return {"status": "skipped", "reason": "booking_not_active"}
 
         await asyncio.to_thread(
             send_booking_confirmation_email,
@@ -71,21 +130,30 @@ def process_booking_creation(self, booking_id: int):
     try:
         return asyncio.run(process())
     except (OSError, smtplib.SMTPException, SQLAlchemyError) as exc:
-        logger.exception("Error processing booking %s", booking_id)
-        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc) from exc
+        _handle_notification_failure(self, exc, booking_id=booking_id)
 
 
 @celery_app.task(bind=True, max_retries=3)
 def process_booking_cancellation(self, booking_id: int):
     async def process():
         async with CelerySessionLocal() as session:
-            stmt = select(User).join(Booking).where(Booking.id == booking_id)
+            stmt = select(Booking, User).join(User).where(Booking.id == booking_id)
             result = await session.execute(stmt)
-            user = result.scalar_one_or_none()
+            booking_data = result.first()
 
-            if not user:
+            if not booking_data:
                 logger.error(f"User for cancelled booking {booking_id} not found")
                 return {"status": "error"}
+
+            booking, user = booking_data
+            if booking.status != BookingStatus.CANCELLED:
+                logger.info(
+                    "Skipped booking cancellation notification: "
+                    "booking_id=%s status=%s",
+                    booking_id,
+                    booking.status.value,
+                )
+                return {"status": "skipped", "reason": "booking_not_cancelled"}
 
         await asyncio.to_thread(
             send_booking_cancellation_email,
@@ -100,8 +168,7 @@ def process_booking_cancellation(self, booking_id: int):
     try:
         return asyncio.run(process())
     except (OSError, smtplib.SMTPException, SQLAlchemyError) as exc:
-        logger.exception("Error processing booking cancellation %s", booking_id)
-        raise self.retry(countdown=60 * (self.request.retries + 1), exc=exc) from exc
+        _handle_notification_failure(self, exc, booking_id=booking_id)
 
 
 @celery_app.task
@@ -182,7 +249,11 @@ def send_daily_reminders():
         reminders_sent = 0
         for (booking, _, _), res in zip(bookings_data, results, strict=True):
             if isinstance(res, Exception):
-                logger.error(f"Error sending reminder for booking {booking.id}: {res}")
+                logger.error(
+                    "Error sending booking reminder: booking_id=%s error=%s",
+                    booking.id,
+                    type(res).__name__,
+                )
             else:
                 reminders_sent += 1
                 logger.info(f"Reminder sent for booking {booking.id}")
@@ -260,9 +331,12 @@ More detailed statistics are available in the admin panel.
         results = await asyncio.gather(*email_tasks, return_exceptions=True)
 
         admins_notified = 0
-        for email, res in zip(admin_emails, results, strict=True):
+        for res in results:
             if isinstance(res, Exception):
-                logger.error(f"Error sending report to {email}: {res}")
+                logger.error(
+                    "Error sending daily report: error=%s",
+                    type(res).__name__,
+                )
             else:
                 admins_notified += 1
 
