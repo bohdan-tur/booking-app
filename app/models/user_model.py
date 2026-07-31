@@ -1,7 +1,8 @@
 import re
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.database import Base
@@ -9,6 +10,7 @@ from app.models.role_model import Role
 
 if TYPE_CHECKING:
     from app.models.booking_model import Bookings
+    from app.models.refresh_token_model import RefreshToken
 
 MIN_USERNAME_LENGTH = 3
 
@@ -21,15 +23,19 @@ class Users(Base):
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
+    tokens_valid_after: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     role: Mapped[Role] = mapped_column(nullable=False, server_default="user")
 
     bookings: Mapped[list["Bookings"]] = relationship("Bookings", back_populates="user")
-
-    @validates("email")
-    def validate_email(self, key: str, email: str) -> str:
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            raise ValueError("Invalid email format")
-        return email.lower()
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     @validates("username")
     def validate_username(self, key: str, username: str) -> str:

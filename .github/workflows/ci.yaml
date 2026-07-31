@@ -2,7 +2,8 @@ name: Booking App CI
 
 on:
   push:
-    branches: [main, master, "ci/**", "refactor/**", "feature/**", "chore/**"]
+    branches:
+      [main, master, "ci/**", "refactor/**", "feature/**", "security/**", "chore/**"]
   pull_request:
     branches: [main, master]
 
@@ -34,8 +35,7 @@ jobs:
       SUPPORT_EMAIL: support@example.com
       SUPPORT_PHONE: "+380000000000"
       DEBUG: "false"
-      TESTING: "true"
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      ENVIRONMENT: test
       FLOWER_BASIC_AUTH: admin:ci-test-password
 
     services:

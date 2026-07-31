@@ -3,15 +3,16 @@ import uuid
 from datetime import timedelta
 from unittest.mock import patch
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-os.environ.setdefault("TESTING", "true")
+os.environ.setdefault("ENVIRONMENT", "test")
 
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
 from app.main import app
 from app.models.booking_model import Bookings
@@ -19,6 +20,8 @@ from app.models.room_model import Rooms
 from app.models.user_model import Users
 
 TEST_DATABASE_URL = settings.TEST_DATABASE_URL
+TEST_USER_PASSWORD = "password12345"
+TEST_USER_PASSWORD_HASH = hash_password(TEST_USER_PASSWORD)
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -31,6 +34,7 @@ async def engine():
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_database(engine):
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
@@ -70,6 +74,17 @@ async def client():
         yield ac
 
 
+@pytest.fixture(autouse=True)
+def disable_auth_rate_limits(monkeypatch):
+    async def _allow_request(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.api.routers.auth.enforce_rate_limit",
+        _allow_request,
+    )
+
+
 @pytest_asyncio.fixture
 async def create_test_user(db_session: AsyncSession):
     async def _create_user(role="admin"):
@@ -77,7 +92,7 @@ async def create_test_user(db_session: AsyncSession):
         user = Users(
             username=f"tester_{unique_suffix}",
             email=f"tester_{unique_suffix}@example.com",
-            password_hash="testhash",
+            password_hash=TEST_USER_PASSWORD_HASH,
             role=role,
             is_active=True,
         )
