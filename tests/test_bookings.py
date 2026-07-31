@@ -91,6 +91,36 @@ async def test_get_all_bookings_success(
     assert response.json()[0]["room_id"] == room.id
 
 
+async def test_get_all_bookings_pagination(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
+    await db_session.commit()
+
+    user = await create_test_user(role="user")
+    room = await create_room(name="Paginated Booking Room")
+    start = datetime.now(UTC) + timedelta(days=1)
+    bookings = [
+        await create_booking(
+            user.id,
+            room.id,
+            start + timedelta(days=index * 2),
+            start + timedelta(days=index * 2 + 1),
+        )
+        for index in range(3)
+    ]
+
+    response = await authenticated_client.get("/bookings/?offset=1&limit=1")
+
+    assert response.status_code == 200
+    assert [booking["id"] for booking in response.json()] == [bookings[1].id]
+
+
 async def test_get_own_booking_success(
     client: AsyncClient, db_session, create_room, create_test_user, create_booking
 ):
@@ -141,7 +171,12 @@ async def test_update_booking_success(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "success"}
+    data = response.json()
+    assert data["id"] == booking.id
+    assert data["room_id"] == room.id
+    assert data["status"] == BookingStatus.ACTIVE
+    assert datetime.fromisoformat(data["start_time"]) == now + timedelta(days=5)
+    assert datetime.fromisoformat(data["end_time"]) == now + timedelta(days=7)
 
 
 @patch("app.api.routers.bookings.process_booking_cancellation.delay")
@@ -212,14 +247,13 @@ async def test_booking_cancellation_survives_notification_broker_failure(
     mock_delay.assert_called_once_with(booking_id=booking.id)
 
 
-async def test_get_all_bookings_not_found(
-    authenticated_client: AsyncClient, db_session
-):
+async def test_get_all_bookings_empty(authenticated_client: AsyncClient, db_session):
     await db_session.execute(delete(Booking))
     await db_session.commit()
 
     response = await authenticated_client.get("/bookings/")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 async def test_get_single_booking_not_found(authenticated_client: AsyncClient):

@@ -6,6 +6,7 @@ from sqlalchemy import delete, select, update
 
 from app.api.dependencies import (
     DbSession,
+    Pagination,
     allow_admin,
     allow_admin_and_manager,
     get_current_user,
@@ -53,8 +54,11 @@ async def change_password(
     dependencies=[Depends(allow_admin_and_manager)],
     response_model=list[UserOut],
 )
-async def get_all_users(db: DbSession) -> list[UserOut]:
-    query_result = await db.execute(select(User))
+async def get_all_users(db: DbSession, pagination: Pagination) -> list[UserOut]:
+    query = (
+        select(User).order_by(User.id).offset(pagination.offset).limit(pagination.limit)
+    )
+    query_result = await db.execute(query)
     return query_result.scalars().all()
 
 

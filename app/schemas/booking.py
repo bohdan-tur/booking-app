@@ -41,8 +41,8 @@ class BookingCreate(BookingValidationBase):
         json_schema_extra={
             "example": {
                 "room_id": 1,
-                "start_time": "2026-08-15T14:00:00Z",
-                "end_time": "2026-08-20T11:00:00Z",
+                "start_time": "2030-08-15T14:00:00Z",
+                "end_time": "2030-08-20T11:00:00Z",
             }
         },
     )
@@ -57,8 +57,8 @@ class BookingUpdate(BookingValidationBase):
         extra="forbid",
         json_schema_extra={
             "example": {
-                "start_time": "2026-08-15T14:00:00Z",
-                "end_time": "2026-08-20T11:00:00Z",
+                "start_time": "2030-08-15T14:00:00Z",
+                "end_time": "2030-08-20T11:00:00Z",
             }
         },
     )
