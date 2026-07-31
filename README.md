@@ -1,501 +1,426 @@
-# Booking App 🏨
+# Booking API
 
-A modern RESTful hotel booking API built with FastAPI, PostgreSQL, Redis, and Celery. The project uses an asynchronous architecture, background task processing, JWT-based authentication, isolated testing, database migrations, and a fully containerized development workflow with Docker Compose.
+[![CI](https://github.com/bohdan-tur/booking-app/actions/workflows/ci.yaml/badge.svg)](https://github.com/bohdan-tur/booking-app/actions/workflows/ci.yaml)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Tests](https://img.shields.io/badge/tests-139%20passed-brightgreen)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-78%25-green)](#testing)
 
-## Table of Contents 📚
+An asynchronous hotel booking REST API built with FastAPI, PostgreSQL, Redis,
+and Celery. The project focuses on the backend problems that matter in a real
+booking system: concurrent inventory updates, explicit booking lifecycle,
+secure token rotation, role-based authorization, background notifications, and
+reproducible infrastructure.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Environment Variables](#environment-variables)
-- [Docker Services](#docker-services)
-- [Getting Started](#getting-started)
-- [API Usage Example](#api-usage-example)
-- [Testing](#testing)
-- [Background Tasks](#background-tasks)
-- [Authentication](#authentication)
-- [Author](#author)
+## Why this project is more than CRUD
 
-## Overview
-
-Booking App is a backend application for hotel room booking. It is designed as an asynchronous API service with a modular structure, background task processing, and isolated test infrastructure.
-
-The project includes:
-
-- JWT-based authentication with access and refresh tokens
-- room booking management endpoints
-- PostgreSQL integration with async SQLAlchemy
-- Redis-backed Celery task processing
-- Alembic database migrations
-- isolated Docker-based test setup
-- Flower monitoring for Celery tasks
-
-## Features
-
-**JWT Authentication 🔐**
-
-- access and refresh tokens
-- configurable expiration settings
-- token-based protected endpoints
-
-**Password Security 🔒**
-
-- password hashing with Argon2
-- password verification via passlib
-
-**Booking Management 🏨**
-
-- create and manage room bookings
-- request validation with Pydantic schemas
-- separated business logic layer
-
-**Asynchronous Email Notifications 📨**
-
-- background email sending with Celery
-- SMTP configuration support
-- task monitoring via Flower
-
-**Database Migrations 🗄**
-
-- Alembic-based schema versioning
-- migration support inside Docker workflow
-
-**Isolated Test Environment 🧪**
-
-- dedicated PostgreSQL test container
-- separate test database URL
-- containerized test execution with Pytest
-
-**Containerized Development 🐳**
-
-- multi-service Docker Compose setup
-- separate containers for API, database, Redis, Celery, and tests
-- health checks for dependent services
-
-## Tech Stack
-
-**Backend**
-
-- Python 3.13
-- FastAPI 0.121.1
-- Pydantic 2.12.4
-- Pydantic Settings 2.13.1
-- Uvicorn 0.38.0
-
-**Database & ORM**
-
-- PostgreSQL 15
-- SQLAlchemy 2.0.44
-- Alembic 1.17.2
-- asyncpg 0.31.0
-
-**Authentication & Security**
-
-- PyJWT 2.12.1
-- passlib 1.7.4
-- argon2-cffi 25.1.0
-
-**Background Tasks & Messaging**
-
-- Celery 5.3.4
-- Redis 7 — broker / cache server
-- redis-py 5.0.1 — Python Redis client
-- Flower 2.0.1
-
-**Testing**
-
-- Pytest 9.0.1
-- pytest-asyncio 1.3.0
-- httpx 0.28.1
-
-**DevOps & Tooling**
-
-- Docker
-- Docker Compose
-- GitHub Actions
-- python-dotenv
-- watchfiles
+- **Concurrency-safe booking:** availability-changing operations lock the room
+  row with PostgreSQL `SELECT ... FOR UPDATE`, check overlapping active
+  bookings, and commit the change once.
+- **Explicit lifecycle:** bookings transition through `ACTIVE`, `CANCELLED`,
+  and `COMPLETED`; cancellation preserves booking history instead of deleting
+  the row.
+- **Inventory model:** `Room.total_units` represents the number of equivalent
+  rooms of one type. Overlapping bookings may coexist up to that capacity.
+- **UTC date policy:** booking input must contain a timezone, is normalized to
+  UTC, cannot start in the past, and must satisfy `start_time < end_time`.
+- **Hardened authentication:** short-lived access tokens, rotating refresh
+  tokens stored only as SHA-256 hashes, session revocation, active-user checks,
+  password invalidation, and Redis-backed rate limiting.
+- **Role-based access control:** separate permissions for `user`, `manager`,
+  and `admin`, including negative authorization tests.
+- **Background processing:** Celery sends booking emails, completes finished
+  bookings, sends reminders, and generates daily statistics. Temporary SMTP
+  failures use exponential backoff with jitter.
+- **Database-level integrity:** Alembic migrations and PostgreSQL constraints
+  protect booking periods, room price, capacity, and inventory.
+- **Automated verification:** CI runs Ruff, dependency auditing, the complete
+  migration lifecycle, tests, Compose validation, and Docker image builds.
 
 ## Architecture
 
-The project runs as a multi-container application and separates responsibilities across dedicated services.
-
-**Main services**
-
-- backend — FastAPI application
-- db — primary PostgreSQL database
-- db_test — isolated PostgreSQL database for tests
-- redis — broker/cache used by Celery
-- alembic — migration runner
-- celery_worker — asynchronous task worker
-- celery_beat — scheduler for periodic tasks
-- flower — Celery monitoring UI
-- tests — dedicated test container
-
-**High-level flow**
-
-```
-Client
-  ↓
-FastAPI Backend
-  ├── PostgreSQL (application data)
-  ├── Redis (broker / cache)
-  └── Celery
-       ├── Worker
-       ├── Beat
-       └── Flower
+```text
+                        +-------------------+
+Client / Swagger UI --->| FastAPI API       |
+                        | async SQLAlchemy  |
+                        +---------+---------+
+                                  |
+                     +------------+------------+
+                     |                         |
+                     v                         v
+              +-------------+           +-------------+
+              | PostgreSQL  |           | Redis       |
+              | data/locks  |           | rate limits |
+              +-------------+           | Celery      |
+                                        +------^------+
+                                               |
+                                +--------------+--------------+
+                                | Celery worker + beat         |
+                                | email and scheduled tasks    |
+                                +-----------------------------+
 ```
 
-**Startup flow**
+The API uses async SQLAlchemy sessions. Celery workers create their own async
+database sessions, while Redis acts as the task broker/result backend and
+stores short-lived rate-limit counters.
 
-```
-db + redis
-   ↓
-alembic migrations
-   ↓
-backend startup
-   ↓
-celery worker / beat / flower
-```
+### Booking transaction
 
-This allows the application to wait for infrastructure readiness before starting the API.
-
-## Project Structure
-
-```
-booking-app/
-├── app/                              # Main application package
-│   ├── __init__.py
-│   ├── main.py                       # FastAPI entry point
-│   │
-│   ├── api/                          # API layer
-│   │   ├── __init__.py
-│   │   ├── dependencies.py           # FastAPI dependencies
-│   │   └── routers/                  # Route modules / endpoints
-│   │
-│   ├── core/                         # Configuration, logging, security
-│   │   ├── __init__.py
-│   │   ├── config.py                 # Environment-based settings
-│   │   ├── logger.py                 # Logger setup
-│   │   ├── logging_config.py         # Logging configuration
-│   │   └── security.py               # JWT, password hashing, token logic
-│   │
-│   ├── db/                           # Database layer
-│   │   ├── __init__.py
-│   │   ├── database.py               # Engine, session, async DB setup
-│   │   └── seed.py                   # Seed data
-│   │
-│   ├── models/                       # SQLAlchemy ORM models
-│   │   ├── __init__.py
-│   │   ├── user_model.py
-│   │   ├── booking_model.py
-│   │   ├── room_model.py
-│   │   └── role_model.py
-│   │
-│   ├── schemas/                      # Pydantic schemas / validation
-│   │   ├── __init__.py
-│   │   ├── user_schema.py
-│   │   ├── booking_schema.py
-│   │   ├── room_schema.py
-│   │   └── token_schema.py
-│   │
-│   ├── services/                     # Business logic
-│   │   ├── __init__.py
-│   │   ├── email.py                  # Email service
-│   │   └── booking_check.py          # Booking validation/check logic
-│   │
-│   ├── workers/                      # Celery tasks
-│   │   ├── __init__.py
-│   │   ├── app.py                    # Celery application instance
-│   │   └── tasks.py                  # Background tasks
-│   │
-│   └── alembic/                      # Database migrations
-│       ├── env.py
-│       ├── script.py.mako
-│       └── versions/
-│
-├── tests/                            # Test suite
-│   ├── __init__.py
-│   ├── conftest.py                   # Pytest fixtures
-│   ├── test_auth.py
-│   ├── test_bookings.py
-│   ├── test_rooms.py
-│   ├── test_users.py
-│   ├── test_email.py
-│   └── test_celery_tasks.py
-│
-├── logs/                             # Application logs
-├── .github/                          # GitHub Actions workflows
-├── .env.example                      # Example environment variables
-├── .gitignore
-├── .dockerignore
-├── Dockerfile                        # Docker image
-├── docker-compose.yaml               # Multi-container orchestration
-├── alembic.ini                       # Alembic configuration
-├── pytest.ini                        # Pytest configuration
-└── requirements.txt
+```text
+BEGIN
+  -> lock the relevant room row
+  -> count overlapping ACTIVE bookings
+  -> validate total_units
+  -> create, update, or cancel the booking
+COMMIT
 ```
 
-## Environment Variables
+For an update, the overlap query excludes the booking being changed. Only
+`ACTIVE` bookings block availability; cancelled bookings immediately release
+inventory. An inactive room cannot receive new bookings, but its historical
+bookings remain intact.
 
-Example configuration:
+## Tech stack
 
-```
-# Database Configuration
-DATABASE_URL=postgresql+asyncpg://postgres:your_db_password@booking_db:5432/booking_db
-TEST_DATABASE_URL=postgresql+asyncpg://postgres:password@db_test:5432/test_db
-REDIS_URL=redis://redis:6379/0
-
-# Security Configuration
-ALGORITHM=HS256
-SECRET_KEY=your-secret-key-change-this-in-production
-REFRESH_SECRET_KEY=your-refresh-secret-key-change-this-in-production
-
-# Token Expiration
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# Default Passwords for Seed
-ADMIN_DEFAULT_PASSWORD=your_secure_admin_password
-MANAGER_DEFAULT_PASSWORD=your_secure_manager_password
-USER_DEFAULT_PASSWORD=your_secure_user_password
-
-# Email Configuration
-SMTP_HOST=sandbox.smtp.mailtrap.io
-SMTP_PORT=587
-SMTP_USER=your_mailtrap_user
-SMTP_PASSWORD=your_mailtrap_password
-EMAIL_FROM=noreply@booking.com
-
-# PostgreSQL Container Configuration
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_db_password
-POSTGRES_DB=booking_db
-
-# Application Settings
-DEBUG=true
-TESTING=false
-CORS_ORIGINS='["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"]'
-```
-
-**Key variables**
-
-| Variable                      | Description                       |
-| ----------------------------- | --------------------------------- |
-| `DATABASE_URL`                | Main PostgreSQL connection string |
-| `TEST_DATABASE_URL`           | Database used during tests        |
-| `REDIS_URL`                   | Redis connection string           |
-| `SECRET_KEY`                  | Secret key for access tokens      |
-| `REFRESH_SECRET_KEY`          | Secret key for refresh tokens     |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime             |
-| `REFRESH_TOKEN_EXPIRE_DAYS`   | Refresh token lifetime            |
-| `SMTP_HOST` / `SMTP_PORT`     | SMTP server configuration         |
-| `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials                  |
-| `EMAIL_FROM`                  | Default sender email              |
-| `DEBUG`                       | Enables debug mode                |
-| `TESTING`                     | Enables test mode                 |
-| `CORS_ORIGINS`                | Allowed CORS origins              |
-
-## Docker Services
-
-The application is designed to run using Docker Compose.
-
-| Service | Purpose |
+| Area | Technologies |
 |---|---|
-| `db` | Main PostgreSQL database |
-| `redis` | Redis broker / cache |
-| `alembic` | Runs database migrations before backend startup |
-| `backend` | FastAPI application |
-| `db_test` | Separate PostgreSQL container for tests |
-| `celery_worker` | Executes background tasks |
-| `celery_beat` | Runs scheduled Celery tasks |
-| `flower` | Web UI for Celery monitoring |
-| `tests` | Runs the Pytest suite |
+| API | Python 3.13, FastAPI, Uvicorn, Pydantic v2 |
+| Database | PostgreSQL 15, SQLAlchemy 2 async, asyncpg, Alembic |
+| Authentication | JWT, Argon2, rotating refresh-token sessions |
+| Background jobs | Celery, Redis, Celery Beat, Flower |
+| Testing | Pytest, pytest-asyncio, HTTPX, pytest-cov |
+| Quality and CI | Ruff, pip-audit, GitHub Actions, Docker Compose |
 
-## Getting Started
+## Project structure
 
-**1. Clone the repository**
-
+```text
+booking-app/
+|-- app/
+|   |-- api/
+|   |   |-- dependencies.py       # DB, authentication, RBAC, pagination
+|   |   `-- routers/              # Auth, users, rooms, bookings, system
+|   |-- core/                     # Settings, JWT/password security, logging
+|   |-- db/                       # Async engine/session and optional seed
+|   |-- models/                   # SQLAlchemy ORM models
+|   |-- schemas/                  # Pydantic request/response contracts
+|   |-- services/                 # Booking, refresh-token, email, rate-limit logic
+|   |-- workers/                  # Celery application and tasks
+|   |-- alembic/                  # Migration environment and revisions
+|   `-- main.py                   # FastAPI application
+|-- tests/                        # API, security, concurrency, and worker tests
+|-- .github/workflows/ci.yaml     # CI pipeline
+|-- docker-compose.yaml           # Local application and test infrastructure
+|-- Dockerfile                    # Runtime, test, and production stages
+|-- requirements.txt
+|-- requirements-dev.txt
+`-- alembic.ini
 ```
+
+## Quick start with Docker
+
+### Prerequisites
+
+- Docker Engine with Docker Compose
+- Git
+
+### 1. Clone and configure
+
+```bash
 git clone https://github.com/bohdan-tur/booking-app.git
 cd booking-app
-```
-
-**2. Create the environment file**
-
-```
 cp .env.example .env
 ```
 
-Then update the `.env` file with your local configuration.
+Replace the placeholder database password, token secrets, seed passwords, SMTP
+credentials, and Flower credentials in `.env`.
 
-**3. Start all services**
+Generate two different secrets, each at least 32 bytes long:
 
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
+
+### 2. Start the application
+
+```bash
 docker compose up -d --build
-```
-
-This command will build and start:
-
-- PostgreSQL
-- Redis
-- Alembic migrations
-- FastAPI backend
-- Celery worker
-- Celery beat
-- Flower
-
-**4. Check service status**
-
-```
 docker compose ps
 ```
 
-**Note:** On first startup, the API automatically seeds the database with default users:
-- Admin: `admin@booking.com` / `your_secure_admin_password`
-- Manager: `manager@booking.com` / `your_secure_manager_password`
-- User: `user@booking.com` / `your_secure_user_password`
+Compose waits for PostgreSQL, applies `alembic upgrade head`, and then starts
+the API, Redis, Celery worker, and Celery Beat.
 
-You can use these credentials in Swagger UI to test admin/manager-protected endpoints.
+| Service | Address |
+|---|---|
+| Swagger UI | <http://localhost:8001/docs> |
+| ReDoc | <http://localhost:8001/redoc> |
+| API readiness | <http://localhost:8001/system/ready> |
+| PostgreSQL | `localhost:5436` |
+| Redis | `localhost:6381` |
 
-**Available Services 🌐**
+Flower is optional and protected with basic authentication:
 
-Once the application is running, the following endpoints should be available:
+```bash
+docker compose --profile monitoring up -d flower
+```
 
-| Service    | URL                           |
-| ---------- | ----------------------------- |
-| Swagger UI | `http://localhost:8001/docs`  |
-| ReDoc      | `http://localhost:8001/redoc` |
-| Flower     | `http://localhost:5555`       |
-| PostgreSQL | `localhost:5436`              |
-| Redis      | `localhost:6381`              |
+It is then available at <http://localhost:5555>.
 
-## 💻 API Endpoints
+### 3. Seed demo users (optional)
 
-### Authentication (`/auth`)
-- `POST /auth/` - Refresh access token
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login user
+Seeding is allowed only in `development` and only when explicitly enabled:
 
-### Users (`/users`)
-- `GET /users/me` - Get current user info
-- `PATCH /users/me/password` - Change password
-- `GET /users/` - Get all users (admin/manager)
-- `GET /users/{user_id}` - Get user by id (admin/manager)
-- `PATCH /users/{user_id}/role` - Change user role (admin)
-- `DELETE /users/{user_id}` - Delete user (admin)
-- `PATCH /users/deactivate/{user_id}` - Deactivate user (admin)
-- `PATCH /users/activate/{user_id}` - Activate user (admin)
+```env
+ENVIRONMENT=development
+SEED_DEFAULT_USERS=true
+```
 
-### Rooms (`/rooms`)
-- `GET /rooms/all` - Get all rooms
-- `GET /rooms/available` - Get available rooms
-- `GET /rooms/{room_id}/available` - Check room availability
-- `GET /rooms/booked` - Get all booked rooms (admin/manager)
-- `GET /rooms/booked/{room_id}` - Get booked room (admin/manager)
-- `POST /rooms/` - Add room (admin)
-- `PATCH /rooms/{room_id}` - Update room (admin/manager)
-- `DELETE /rooms/{room_id}` - Delete room (admin)
+The seed is idempotent and creates `admin`, `manager`, and `user` accounts with
+the passwords configured in `.env`. Set `SEED_DEFAULT_USERS=false` after the
+first startup if you no longer need startup seeding. Production configuration
+rejects enabled demo-user seeding.
 
-### Bookings (`/bookings`)
-- `POST /bookings/` - Create booking
-- `GET /bookings/` - Get all bookings (admin/manager)
-- `GET /bookings/{booking_id}` - Get single booking
-- `PATCH /bookings/{booking_id}` - Update booking (admin/manager)
-- `DELETE /bookings/{booking_id}` - Cancel booking
+### Stop the stack
 
-### System (`/system`)
-- `GET /system/live` - Liveness probe
-- `GET /system/ready` - Readiness probe
+```bash
+docker compose down
+```
 
-### API Usage Example
+Add `-v` only when you intentionally want to remove PostgreSQL and Redis
+volumes as well.
 
-**Create a booking**
+## Configuration
 
-Request
+The complete template is available in [`.env.example`](.env.example).
 
-`POST /bookings/`
+| Variable | Purpose | Typical development value |
+|---|---|---|
+| `ENVIRONMENT` | `development`, `test`, or `production` | `development` |
+| `DEBUG` | FastAPI debug mode | `false` |
+| `DATABASE_URL` | Async application database DSN | PostgreSQL URL for `db` |
+| `TEST_DATABASE_URL` | Isolated test database DSN | PostgreSQL URL for `db_test` |
+| `REDIS_URL` | Celery and rate-limit storage | `redis://redis:6379/0` |
+| `SECRET_KEY` | Access-token signing key | unique 32+ byte secret |
+| `REFRESH_SECRET_KEY` | Refresh-token signing key | different 32+ byte secret |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access-token lifetime | `15` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh-token lifetime | `7` |
+| `SEED_DEFAULT_USERS` | Enable development seed on startup | `false` |
+| `SMTP_*`, `EMAIL_FROM` | Email transport and sender | SMTP provider settings |
+| `TIMEZONE` | Celery scheduling timezone | `UTC` |
+| `FLOWER_BASIC_AUTH` | Flower credentials | `admin:strong-password` |
+
+When `ENVIRONMENT=production`, startup fails if debug or seeding is enabled,
+if either signing key is still the development default, if the keys are equal,
+or if either key is shorter than 32 bytes.
+
+## API overview
+
+All collection endpoints use stable ascending ID ordering. Paginated endpoints
+accept `offset` (default `0`) and `limit` (default `20`, maximum `100`). Empty
+collections return `200 []`.
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| `POST` | `/auth/register` | Public | Register an account |
+| `POST` | `/auth/login` | Public | Issue access and refresh tokens |
+| `POST` | `/auth/refresh` | Public, refresh token body | Rotate the refresh token and issue a new pair |
+| `POST` | `/auth/logout` | Refresh token body | Revoke one refresh session |
+| `POST` | `/auth/logout-all` | Authenticated | Revoke every session and invalidate existing access tokens |
+| `GET` | `/users/me` | Authenticated | Read the current profile |
+| `PATCH` | `/users/me/password` | Authenticated | Change password after checking the current password |
+| `GET` | `/users/` | Manager/Admin | List users with pagination |
+| `GET` | `/users/{user_id}` | Manager/Admin | Read a user |
+| `PATCH` | `/users/{user_id}/role` | Admin | Change a non-admin role |
+| `PATCH` | `/users/deactivate/{user_id}` | Admin | Deactivate a non-admin account |
+| `PATCH` | `/users/activate/{user_id}` | Admin | Reactivate a non-admin account |
+| `DELETE` | `/users/{user_id}` | Admin | Delete a non-admin account |
+| `GET` | `/rooms/all` | Public | List active room types with pagination |
+| `GET` | `/rooms/available` | Public | List room types available for a period |
+| `GET` | `/rooms/{room_id}/available` | Public | Check one room type for a period |
+| `GET` | `/rooms/booked` | Manager/Admin | List booked room types for a period |
+| `GET` | `/rooms/booked/{room_id}` | Manager/Admin | Check whether a room type is booked |
+| `POST` | `/rooms/` | Admin | Create a room type |
+| `PATCH` | `/rooms/{room_id}` | Manager/Admin | Update a room type |
+| `DELETE` | `/rooms/{room_id}` | Admin | Archive a room type without deleting history |
+| `POST` | `/bookings/` | Authenticated | Create a booking |
+| `GET` | `/bookings/` | Manager/Admin | List bookings with pagination |
+| `GET` | `/bookings/{booking_id}` | Owner/Manager/Admin | Read one booking |
+| `PATCH` | `/bookings/{booking_id}` | Manager/Admin | Change an active booking period |
+| `DELETE` | `/bookings/{booking_id}` | Owner/Manager/Admin | Cancel without deleting history |
+| `GET` | `/system/live` | Public | Liveness probe |
+| `GET` | `/system/ready` | Public | PostgreSQL readiness probe |
+
+For room availability endpoints, `start_time` and `end_time` are optional query
+parameters. If omitted, the API checks the next 24 hours. When supplied, use
+timezone-aware ISO 8601 values.
+
+## API walkthrough
+
+The interactive Swagger UI at <http://localhost:8001/docs> is the quickest way
+to explore the API. The examples below use `curl`.
+
+### Register
+
+```bash
+curl -X POST http://localhost:8001/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "guest@example.com",
+    "username": "guest_user",
+    "password": "strong-password"
+  }'
+```
+
+Emails are normalized to lowercase. Passwords must contain between 8 and 128
+characters.
+
+### Log in
+
+The login endpoint follows OAuth2 form encoding. The `username` field accepts
+either the username or email address.
+
+```bash
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=guest@example.com&password=strong-password"
+```
 
 ```json
 {
-  "room_id": 101,
-  "start_time": "2026-08-15T14:00:00Z",
-  "end_time": "2026-08-20T12:00:00Z"
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>",
+  "token_type": "bearer"
 }
 ```
 
-Response — 201 Created
+### Create a booking
 
+```bash
+curl -X POST http://localhost:8001/bookings/ \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "room_id": 1,
+    "start_time": "2030-08-15T14:00:00Z",
+    "end_time": "2030-08-20T11:00:00Z"
+  }'
 ```
+
+```json
 {
   "id": 42,
-  "room_id": 101,
+  "room_id": 1,
   "user_id": 5,
-  "start_time": "2026-08-15T14:00:00Z",
-  "end_time": "2026-08-20T12:00:00Z",
-  "status": "Booked"
+  "start_time": "2030-08-15T14:00:00Z",
+  "end_time": "2030-08-20T11:00:00Z",
+  "status": "ACTIVE"
 }
 ```
+
+If every unit is already occupied during the requested interval, the API
+returns `409 Conflict`. Naive datetimes, invalid ranges, and bookings in the
+past are rejected.
+
+### Refresh and revoke a session
+
+Refresh rotates the stored token, so the old token cannot be reused:
+
+```bash
+curl -X POST http://localhost:8001/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+```
+
+Revoke that session with `/auth/logout`, or send an authenticated request to
+`/auth/logout-all` to revoke all refresh sessions and invalidate previously
+issued access tokens.
+
+## Authentication and abuse protection
+
+JWT payloads contain `sub`, `exp`, `iat`, and `type`. Access and refresh tokens
+use separate secrets, and each verifier accepts only the expected token type.
+Every authenticated request reloads the user and rejects deactivated accounts
+or tokens issued before the user's invalidation timestamp.
+
+Refresh tokens are stored as SHA-256 hashes rather than raw credentials. Token
+rotation locks the matching session row, which also prevents two concurrent
+refresh requests from successfully reusing the same token.
+
+Redis rate limits login by IP and account, registration by IP, and refresh by
+IP. A rejected request returns `429` with the remaining window in the
+`Retry-After` header. If Redis is temporarily unavailable, authentication
+remains available and the failure is logged without credentials or tokens.
+
+## Background tasks
+
+Celery Beat schedules:
+
+- completion of finished active bookings every hour;
+- reminders for bookings starting the next day at 09:00;
+- a daily booking report for admins at 23:59.
+
+Booking creation and cancellation also enqueue email notifications. Email is a
+secondary feature: if Redis is unavailable after the database transaction has
+committed, the API preserves the successful booking response and logs only
+non-sensitive task metadata. Transient SMTP and connection errors are retried
+up to three times with exponential backoff and jitter; permanent SMTP errors
+are not retried indefinitely.
 
 ## Testing
 
-The project uses a separate PostgreSQL test container to keep tests isolated from development data.
+The test suite uses a dedicated PostgreSQL container because row locks and
+concurrency behavior cannot be validated faithfully with an in-memory database.
 
-**Run tests**
-
-```
+```bash
 docker compose run --rm tests
 ```
 
-**Test setup**
+Run with coverage:
 
-The `tests` service:
-
-- waits for `db_test` to become healthy
-- uses `TEST_DATABASE_URL`
-- runs the full Pytest suite inside Docker
-- remains isolated from the main application database
-
-This makes the test workflow reproducible and independent of the local machine environment.
-
-## Background Tasks
-
-Background processing is handled with Celery and Redis.
-
-**Included services**
-
-- `celery_worker` — executes asynchronous tasks
-- `celery_beat` — schedules periodic jobs
-- `flower` — provides a monitoring dashboard for task execution
-
-Typical use cases for background tasks include:
-
-- sending email notifications
-- processing long-running jobs outside the request/response cycle
-- scheduling recurring tasks
-
-## Authentication
-
-The application uses JWT-based authentication with separate settings for access and refresh tokens.
-
-**Authentication configuration**
-
-```
-ALGORITHM=HS256
-SECRET_KEY=your-secret-key
-REFRESH_SECRET_KEY=your-refresh-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REFRESH_TOKEN_EXPIRE_DAYS=7
+```bash
+docker compose run --rm tests \
+  pytest --cov=app --cov-report=term-missing
 ```
 
-**Supported token types**
+Current result:
 
-- access token — short-lived token for protected requests
-- refresh token — longer-lived token used to issue a new access token
+```text
+139 passed
+78% total coverage
+```
 
-Passwords are hashed using Argon2 via passlib.
+The suite covers authentication and refresh rotation, negative authorization,
+pagination and response contracts, booking lifecycle, cancelled-booking
+availability, room archival, Celery retry behavior, and real PostgreSQL race
+conditions. Concurrency cases include 20 simultaneous booking attempts against
+inventory of one and three units, concurrent create/update operations, and two
+updates competing for the same availability.
+
+## Database migrations
+
+Migrations run automatically in Compose. For manual migration work inside the
+application container:
+
+```bash
+docker compose run --rm alembic alembic current
+docker compose run --rm alembic alembic upgrade head
+```
+
+The CI pipeline verifies `upgrade -> downgrade base -> upgrade`, then checks
+that the ORM metadata does not introduce an uncommitted schema migration.
+
+## Quality checks
+
+```bash
+ruff check .
+ruff format --check .
+pip-audit -r requirements.txt
+```
+
+GitHub Actions runs these checks together with migrations, tests, Compose
+validation, and runtime/test image builds on every pull request to `main`.
 
 ## Author
 
