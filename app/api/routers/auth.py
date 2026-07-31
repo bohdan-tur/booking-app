@@ -14,7 +14,7 @@ from app.core.security import (
     verify_password,
     verify_refresh_token,
 )
-from app.models.user_model import Users
+from app.models.user_model import User
 from app.schemas.token_schema import RefreshTokenRequest
 from app.schemas.user_schema import MAX_PASSWORD_LENGTH, UserCreate, UserOut
 from app.services.rate_limit_service import RateLimitExceeded, enforce_rate_limit
@@ -75,7 +75,7 @@ async def get_refresh_token(
         raise credentials_exception
 
     query_result = await db.execute(
-        select(Users).filter(Users.id == verified_token.user_id)
+        select(User).filter(User.id == verified_token.user_id)
     )
     user = query_result.scalars().first()
 
@@ -119,7 +119,7 @@ async def add_user(
     )
 
     query_result = await db.execute(
-        select(Users).filter(Users.email == user_data.email)
+        select(User).filter(User.email == user_data.email)
     )
 
     if query_result.scalars().first():
@@ -129,7 +129,7 @@ async def add_user(
         )
 
     hashed_pwd = hash_password(user_data.password)
-    new_user = Users(
+    new_user = User(
         username=user_data.username,
         password_hash=hashed_pwd,
         email=user_data.email,
@@ -169,10 +169,10 @@ async def user_login(
         raise credentials_exception
 
     query_result = await db.execute(
-        select(Users).filter(
+        select(User).filter(
             or_(
-                Users.email == login.lower(),
-                Users.username == login,
+                User.email == login.lower(),
+                User.username == login,
             )
         )
     )
@@ -215,7 +215,7 @@ async def logout(token_data: RefreshTokenRequest, db: DbSession) -> None:
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
 async def logout_all(
     db: DbSession,
-    user: Annotated[Users, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     user.tokens_valid_after = datetime.now(UTC)
     await RefreshTokenService(db).revoke_all(user.id)

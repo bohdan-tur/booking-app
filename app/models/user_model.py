@@ -9,13 +9,13 @@ from app.db.database import Base
 from app.models.role_model import Role
 
 if TYPE_CHECKING:
-    from app.models.booking_model import Bookings
+    from app.models.booking_model import Booking
     from app.models.refresh_token_model import RefreshToken
 
 MIN_USERNAME_LENGTH = 3
 
 
-class Users(Base):
+class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,7 +29,7 @@ class Users(Base):
     )
     role: Mapped[Role] = mapped_column(nullable=False, server_default="user")
 
-    bookings: Mapped[list["Bookings"]] = relationship("Bookings", back_populates="user")
+    bookings: Mapped[list["Booking"]] = relationship("Booking", back_populates="user")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken",
         back_populates="user",

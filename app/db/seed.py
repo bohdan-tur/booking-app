@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.database import AsyncSessionLocal
 from app.models.role_model import Role
-from app.models.user_model import Users
+from app.models.user_model import User
 
 
 async def seed_data() -> None:
@@ -26,13 +26,13 @@ async def seed_data() -> None:
 
         for username, email, role, password in users_to_seed:
             result = await session.execute(
-                select(Users).where(Users.username == username)
+                select(User).where(User.username == username)
             )
             user = result.scalar_one_or_none()
 
             if not user:
                 print(f"Creating user '{username}'...")
-                new_user = Users(
+                new_user = User(
                     username=username,
                     email=email,
                     password_hash=hash_password(password),

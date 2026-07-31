@@ -15,9 +15,9 @@ from app.core.config import settings
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
 from app.main import app
-from app.models.booking_model import Bookings
-from app.models.room_model import Rooms
-from app.models.user_model import Users
+from app.models.booking_model import Booking
+from app.models.room_model import Room
+from app.models.user_model import User
 
 TEST_DATABASE_URL = settings.TEST_DATABASE_URL
 TEST_USER_PASSWORD = "password12345"
@@ -89,7 +89,7 @@ def disable_auth_rate_limits(monkeypatch):
 async def create_test_user(db_session: AsyncSession):
     async def _create_user(role="admin"):
         unique_suffix = uuid.uuid4().hex[:8]
-        user = Users(
+        user = User(
             username=f"tester_{unique_suffix}",
             email=f"tester_{unique_suffix}@example.com",
             password_hash=TEST_USER_PASSWORD_HASH,
@@ -128,7 +128,7 @@ async def create_room(db_session: AsyncSession):
         total_units=1,
         amenities="WiFi",
     ):
-        room = Rooms(
+        room = Room(
             name=name,
             price=price,
             capacity=capacity,
@@ -148,7 +148,7 @@ async def create_room(db_session: AsyncSession):
 async def create_booking(db_session: AsyncSession):
 
     async def _create_booking(user_id: int, room_id: int, start_time, end_time):
-        booking = Bookings(
+        booking = Booking(
             user_id=user_id, room_id=room_id, start_time=start_time, end_time=end_time
         )
         db_session.add(booking)

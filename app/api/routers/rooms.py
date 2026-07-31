@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, func, select
 
 from app.api.dependencies import DbSession, allow_admin, allow_admin_and_manager
-from app.models.booking_model import Bookings
+from app.models.booking_model import Booking
 from app.models.booking_status import BLOCKING_BOOKING_STATUSES
-from app.models.room_model import Rooms
+from app.models.room_model import Room
 from app.schemas.booking_schema import normalize_to_utc
 from app.schemas.room_schema import RoomCreate, RoomOut, RoomUpdate
 
@@ -43,7 +43,7 @@ def resolve_period(
 
 @router.get("/all", status_code=status.HTTP_200_OK, response_model=list[RoomOut])
 async def get_rooms_catalog(db: DbSession) -> list[RoomOut]:
-    query = select(Rooms).where(Rooms.is_active.is_(True))
+    query = select(Room).where(Room.is_active.is_(True))
     rooms = await db.execute(query)
     res = rooms.scalars().all()
 
@@ -64,26 +64,26 @@ async def get_all_not_booked_rooms(
 
     booked_rooms_subq = (
         select(
-            Bookings.room_id,
-            func.count(Bookings.id).label("booked_count"),
+            Booking.room_id,
+            func.count(Booking.id).label("booked_count"),
         )
         .where(
             and_(
-                Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-                Bookings.start_time < check_end,
-                Bookings.end_time > check_start,
+                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+                Booking.start_time < check_end,
+                Booking.end_time > check_start,
             )
         )
-        .group_by(Bookings.room_id)
+        .group_by(Booking.room_id)
         .subquery()
     )
 
     query = (
-        select(Rooms)
-        .outerjoin(booked_rooms_subq, Rooms.id == booked_rooms_subq.c.room_id)
+        select(Room)
+        .outerjoin(booked_rooms_subq, Room.id == booked_rooms_subq.c.room_id)
         .where(
-            Rooms.is_active.is_(True),
-            (Rooms.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
+            Room.is_active.is_(True),
+            (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
             > 0,
         )
     )
@@ -113,29 +113,29 @@ async def get_not_booked_room(
 
     booked_rooms_subq = (
         select(
-            Bookings.room_id,
-            func.count(Bookings.id).label("booked_count"),
+            Booking.room_id,
+            func.count(Booking.id).label("booked_count"),
         )
         .where(
             and_(
-                Bookings.room_id == room_id,
-                Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-                Bookings.start_time < check_end,
-                Bookings.end_time > check_start,
+                Booking.room_id == room_id,
+                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+                Booking.start_time < check_end,
+                Booking.end_time > check_start,
             )
         )
-        .group_by(Bookings.room_id)
+        .group_by(Booking.room_id)
         .subquery()
     )
 
     query = (
-        select(Rooms)
-        .outerjoin(booked_rooms_subq, Rooms.id == booked_rooms_subq.c.room_id)
+        select(Room)
+        .outerjoin(booked_rooms_subq, Room.id == booked_rooms_subq.c.room_id)
         .where(
             and_(
-                Rooms.id == room_id,
-                Rooms.is_active.is_(True),
-                (Rooms.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
+                Room.id == room_id,
+                Room.is_active.is_(True),
+                (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
                 > 0,
             )
         )
@@ -166,14 +166,14 @@ async def get_all_booked_rooms(
     check_start, check_end = resolve_period(start_time, end_time)
 
     query = (
-        select(Rooms)
+        select(Room)
         .join(
-            Bookings,
+            Booking,
             and_(
-                Bookings.room_id == Rooms.id,
-                Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-                Bookings.start_time < check_end,
-                Bookings.end_time > check_start,
+                Booking.room_id == Room.id,
+                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+                Booking.start_time < check_end,
+                Booking.end_time > check_start,
             ),
         )
         .distinct()
@@ -204,17 +204,17 @@ async def get_booked_room(
     check_start, check_end = resolve_period(start_time, end_time)
 
     query = (
-        select(Rooms)
+        select(Room)
         .join(
-            Bookings,
+            Booking,
             and_(
-                Bookings.room_id == Rooms.id,
-                Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-                Bookings.start_time < check_end,
-                Bookings.end_time > check_start,
+                Booking.room_id == Room.id,
+                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+                Booking.start_time < check_end,
+                Booking.end_time > check_start,
             ),
         )
-        .filter(Rooms.id == room_id)
+        .filter(Room.id == room_id)
     )
     res = (await db.execute(query)).scalars().first()
 
@@ -232,7 +232,7 @@ async def get_booked_room(
     dependencies=[Depends(allow_admin)],
 )
 async def add_room(room_data: RoomCreate, db: DbSession) -> RoomOut:
-    new_room = Rooms(**room_data.model_dump())
+    new_room = Room(**room_data.model_dump())
     db.add(new_room)
     await db.commit()
     await db.refresh(new_room)
@@ -255,7 +255,7 @@ async def change_room(
             detail="No fields provided for update",
         )
 
-    room = await db.scalar(select(Rooms).where(Rooms.id == room_id).with_for_update())
+    room = await db.scalar(select(Room).where(Room.id == room_id).with_for_update())
     if room is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
@@ -264,11 +264,11 @@ async def change_room(
     new_total_units = update_data.get("total_units")
     if new_total_units is not None and new_total_units < room.total_units:
         active_booking_id = await db.scalar(
-            select(Bookings.id)
+            select(Booking.id)
             .where(
-                Bookings.room_id == room.id,
-                Bookings.status.in_(BLOCKING_BOOKING_STATUSES),
-                Bookings.end_time > datetime.now(UTC),
+                Booking.room_id == room.id,
+                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
+                Booking.end_time > datetime.now(UTC),
             )
             .limit(1)
         )
@@ -290,7 +290,7 @@ async def change_room(
     dependencies=[Depends(allow_admin)],
 )
 async def delete_room_by_id(db: DbSession, room_id: Annotated[int, Path(gt=0)]) -> None:
-    room = await db.scalar(select(Rooms).where(Rooms.id == room_id).with_for_update())
+    room = await db.scalar(select(Room).where(Room.id == room_id).with_for_update())
     if room is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -7,17 +7,17 @@ from httpx import AsyncClient
 from sqlalchemy import delete, func, select
 
 from app.core.security import create_access_token
-from app.models.booking_model import Bookings
+from app.models.booking_model import Booking
 from app.models.booking_status import BookingStatus
-from app.models.room_model import Rooms
+from app.models.room_model import Room
 
 
 @patch("app.api.routers.bookings.process_booking_creation.delay")
 async def test_book_room_success(
     mock_delay, authenticated_client: AsyncClient, db_session, create_room
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     room = await create_room(name="Book Room", total_units=2)
@@ -47,8 +47,8 @@ async def test_get_all_bookings_success(
     create_test_user,
     create_booking,
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -66,8 +66,8 @@ async def test_get_all_bookings_success(
 async def test_get_own_booking_success(
     client: AsyncClient, db_session, create_room, create_test_user, create_booking
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -94,8 +94,8 @@ async def test_update_booking_success(
     create_test_user,
     create_booking,
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -125,8 +125,8 @@ async def test_cancel_own_booking_success(
     create_test_user,
     create_booking,
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -152,7 +152,7 @@ async def test_cancel_own_booking_success(
 async def test_get_all_bookings_not_found(
     authenticated_client: AsyncClient, db_session
 ):
-    await db_session.execute(delete(Bookings))
+    await db_session.execute(delete(Booking))
     await db_session.commit()
 
     response = await authenticated_client.get("/bookings/")
@@ -406,9 +406,9 @@ async def test_concurrent_booking_requests_respect_room_inventory(
     assert status_codes.count(201) == 1
     assert status_codes.count(409) == 9
     booking_count = await db_session.scalar(
-        select(func.count(Bookings.id)).where(
-            Bookings.room_id == room.id,
-            Bookings.status == BookingStatus.ACTIVE,
+        select(func.count(Booking.id)).where(
+            Booking.room_id == room.id,
+            Booking.status == BookingStatus.ACTIVE,
         )
     )
     assert booking_count == 1

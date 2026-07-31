@@ -5,9 +5,9 @@ from httpx import AsyncClient
 from sqlalchemy import delete
 
 from app.core.security import create_access_token
-from app.models.booking_model import Bookings
+from app.models.booking_model import Booking
 from app.models.booking_status import BookingStatus
-from app.models.room_model import Rooms
+from app.models.room_model import Room
 
 
 async def test_add_room_success(authenticated_client: AsyncClient):
@@ -32,8 +32,8 @@ async def test_add_room_success(authenticated_client: AsyncClient):
 
 
 async def test_get_rooms_catalog_success(client: AsyncClient, db_session, create_room):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     await create_room(name="Kyiv Room", location="Kyiv", price=2500)
@@ -52,8 +52,8 @@ async def test_get_rooms_catalog_success(client: AsyncClient, db_session, create
 async def test_get_all_available_rooms_success(
     client: AsyncClient, db_session, create_room, create_test_user, create_booking
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     room_booked = await create_room(name="Booked Room", total_units=1)
@@ -78,8 +78,8 @@ async def test_get_all_available_rooms_success(
 async def test_get_specific_available_room_success(
     client: AsyncClient, db_session, create_room
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     room = await create_room(name="Specific Avail", price=1200)
@@ -96,8 +96,8 @@ async def test_get_all_booked_rooms_success(
     create_test_user,
     create_booking,
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -120,8 +120,8 @@ async def test_get_specific_booked_room_success(
     create_test_user,
     create_booking,
 ):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     user = await create_test_user(role="user")
@@ -167,8 +167,8 @@ async def test_delete_room_success(
 
 
 async def test_get_rooms_catalog_not_found(client: AsyncClient, db_session):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     response = await client.get("/rooms/all")
@@ -176,8 +176,8 @@ async def test_get_rooms_catalog_not_found(client: AsyncClient, db_session):
 
 
 async def test_get_all_available_rooms_not_found(client: AsyncClient, db_session):
-    await db_session.execute(delete(Bookings))
-    await db_session.execute(delete(Rooms))
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
     await db_session.commit()
 
     response = await client.get("/rooms/available")
@@ -192,7 +192,7 @@ async def test_get_specific_available_room_not_found(client: AsyncClient):
 async def test_get_all_booked_rooms_not_found(
     authenticated_client: AsyncClient, db_session
 ):
-    await db_session.execute(delete(Bookings))
+    await db_session.execute(delete(Booking))
     await db_session.commit()
 
     response = await authenticated_client.get("/rooms/booked")

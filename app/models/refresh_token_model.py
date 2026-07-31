@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user_model import Users
+    from app.models.user_model import User
 
 
 class RefreshToken(Base):
@@ -29,4 +29,4 @@ class RefreshToken(Base):
         nullable=False,
     )
 
-    user: Mapped["Users"] = relationship("Users", back_populates="refresh_tokens")
+    user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")

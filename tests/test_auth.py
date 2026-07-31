@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.api.routers import auth as auth_router
 from app.models.refresh_token_model import RefreshToken
-from app.models.user_model import Users
+from app.models.user_model import User
 from app.services.rate_limit_service import RateLimitExceeded
 from app.services.refresh_token_service import hash_refresh_token
 
@@ -201,7 +201,7 @@ async def test_inactive_user_cannot_use_existing_access_token(
         email="inactive_token@example.com",
     )
     user = await db_session.scalar(
-        select(Users).where(Users.email == "inactive_token@example.com")
+        select(User).where(User.email == "inactive_token@example.com")
     )
     user.is_active = False
     await db_session.commit()
@@ -308,7 +308,7 @@ async def test_logout_all_revokes_every_session(
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
     user = await db_session.scalar(
-        select(Users).where(Users.email == "logout_all@example.com")
+        select(User).where(User.email == "logout_all@example.com")
     )
     stored_sessions = (
         await db_session.scalars(
