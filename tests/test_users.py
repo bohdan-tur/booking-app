@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from httpx import AsyncClient
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 
 from app.core.security import create_access_token
 from app.models.user import User
@@ -18,6 +18,23 @@ async def test_get_all_users(authenticated_client: AsyncClient):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
     assert len(response.json()) >= 1
+
+
+async def test_get_all_users_pagination(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_test_user,
+):
+    for _ in range(3):
+        await create_test_user(role="user")
+
+    expected_ids = (
+        await db_session.scalars(select(User.id).order_by(User.id).offset(1).limit(2))
+    ).all()
+    response = await authenticated_client.get("/users/?offset=1&limit=2")
+
+    assert response.status_code == 200
+    assert [user["id"] for user in response.json()] == expected_ids
 
 
 async def test_get_user_by_id(authenticated_client: AsyncClient, db_session):

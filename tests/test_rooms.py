@@ -49,6 +49,27 @@ async def test_get_rooms_catalog_success(client: AsyncClient, db_session, create
     assert "Lviv Room" in names
 
 
+async def test_get_rooms_catalog_pagination(
+    client: AsyncClient, db_session, create_room
+):
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
+    await db_session.commit()
+
+    rooms = [await create_room(name=f"Paginated Room {index}") for index in range(4)]
+
+    response = await client.get("/rooms/all?offset=1&limit=2")
+
+    assert response.status_code == 200
+    assert [room["id"] for room in response.json()] == [rooms[1].id, rooms[2].id]
+
+
+async def test_rooms_pagination_rejects_invalid_limit(client: AsyncClient):
+    response = await client.get("/rooms/all?limit=0")
+
+    assert response.status_code == 422
+
+
 async def test_get_all_available_rooms_success(
     client: AsyncClient, db_session, create_room, create_test_user, create_booking
 ):
@@ -153,6 +174,10 @@ async def test_update_room_success(
 
     response = await authenticated_client.patch(f"/rooms/{room.id}", json=update_data)
     assert response.status_code == 200
+    assert response.json()["id"] == room.id
+    assert response.json()["name"] == "Updated Room"
+    assert response.json()["price"] == "1500.00"
+    assert response.json()["total_units"] == 3
 
 
 async def test_delete_room_success(
@@ -166,22 +191,24 @@ async def test_delete_room_success(
     assert room.is_active is False
 
 
-async def test_get_rooms_catalog_not_found(client: AsyncClient, db_session):
+async def test_get_rooms_catalog_empty(client: AsyncClient, db_session):
     await db_session.execute(delete(Booking))
     await db_session.execute(delete(Room))
     await db_session.commit()
 
     response = await client.get("/rooms/all")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == []
 
 
-async def test_get_all_available_rooms_not_found(client: AsyncClient, db_session):
+async def test_get_all_available_rooms_empty(client: AsyncClient, db_session):
     await db_session.execute(delete(Booking))
     await db_session.execute(delete(Room))
     await db_session.commit()
 
     response = await client.get("/rooms/available")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 async def test_get_specific_available_room_not_found(client: AsyncClient):
@@ -189,14 +216,15 @@ async def test_get_specific_available_room_not_found(client: AsyncClient):
     assert response.status_code == 404
 
 
-async def test_get_all_booked_rooms_not_found(
+async def test_get_all_booked_rooms_empty(
     authenticated_client: AsyncClient, db_session
 ):
     await db_session.execute(delete(Booking))
     await db_session.commit()
 
     response = await authenticated_client.get("/rooms/booked")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 async def test_get_specific_booked_room_not_found(authenticated_client: AsyncClient):
