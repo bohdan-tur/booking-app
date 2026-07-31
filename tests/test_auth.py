@@ -4,8 +4,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.api.routers import auth as auth_router
-from app.models.refresh_token_model import RefreshToken
-from app.models.user_model import User
+from app.models.refresh_token import RefreshToken
+from app.models.user import User
 from app.services.rate_limit_service import RateLimitExceeded
 from app.services.refresh_token_service import hash_refresh_token
 

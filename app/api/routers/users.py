@@ -11,9 +11,9 @@ from app.api.dependencies import (
     get_current_user,
 )
 from app.core.security import hash_password, verify_password
-from app.models.role_model import Role
-from app.models.user_model import User
-from app.schemas.user_schema import UserOut, UserPasswordUpdate, UserRoleUpdate
+from app.models.role import Role
+from app.models.user import User
+from app.schemas.user import UserOut, UserPasswordUpdate, UserRoleUpdate
 from app.services.refresh_token_service import RefreshTokenService
 
 router = APIRouter(tags=["Users"])

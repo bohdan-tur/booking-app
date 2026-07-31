@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from app.api.dependencies import DbSession, allow_admin_and_manager, get_current_user
-from app.models.booking_model import Booking
-from app.models.role_model import Role
-from app.models.user_model import User
-from app.schemas.booking_schema import BookingCreate, BookingOut, BookingUpdate
+from app.models.booking import Booking
+from app.models.role import Role
+from app.models.user import User
+from app.schemas.booking import BookingCreate, BookingOut, BookingUpdate
 from app.services.booking_service import (
     BookingService,
     ConflictError,

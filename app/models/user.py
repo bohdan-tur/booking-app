@@ -6,11 +6,11 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.database import Base
-from app.models.role_model import Role
+from app.models.role import Role
 
 if TYPE_CHECKING:
-    from app.models.booking_model import Booking
-    from app.models.refresh_token_model import RefreshToken
+    from app.models.booking import Booking
+    from app.models.refresh_token import RefreshToken
 
 MIN_USERNAME_LENGTH = 3
 

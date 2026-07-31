@@ -9,10 +9,10 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.models.booking_model import Booking
+from app.models.booking import Booking
 from app.models.booking_status import BookingStatus
-from app.models.room_model import Room
-from app.models.user_model import User
+from app.models.room import Room
+from app.models.user import User
 from app.services.email import (
     send_booking_cancellation_email,
     send_booking_confirmation_email,

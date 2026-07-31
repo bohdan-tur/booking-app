@@ -14,9 +14,9 @@ from app.core.security import (
     verify_password,
     verify_refresh_token,
 )
-from app.models.user_model import User
-from app.schemas.token_schema import RefreshTokenRequest
-from app.schemas.user_schema import MAX_PASSWORD_LENGTH, UserCreate, UserOut
+from app.models.user import User
+from app.schemas.token import RefreshTokenRequest
+from app.schemas.user import MAX_PASSWORD_LENGTH, UserCreate, UserOut
 from app.services.rate_limit_service import RateLimitExceeded, enforce_rate_limit
 from app.services.refresh_token_service import (
     InvalidRefreshTokenError,
@@ -118,9 +118,7 @@ async def add_user(
         REGISTRATION_IP_LIMIT,
     )
 
-    query_result = await db.execute(
-        select(User).filter(User.email == user_data.email)
-    )
+    query_result = await db.execute(select(User).filter(User.email == user_data.email))
 
     if query_result.scalars().first():
         raise HTTPException(

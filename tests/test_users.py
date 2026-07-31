@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy import insert
 
 from app.core.security import create_access_token
-from app.models.user_model import User
+from app.models.user import User
 
 
 async def test_get_user_me(authenticated_client: AsyncClient):

@@ -5,8 +5,8 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.database import AsyncSessionLocal
-from app.models.role_model import Role
-from app.models.user_model import User
+from app.models.role import Role
+from app.models.user import User
 
 
 async def seed_data() -> None:

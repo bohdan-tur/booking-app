@@ -15,9 +15,9 @@ from app.core.config import settings
 from app.core.security import create_access_token, hash_password
 from app.db.database import Base, get_db
 from app.main import app
-from app.models.booking_model import Booking
-from app.models.room_model import Room
-from app.models.user_model import User
+from app.models.booking import Booking
+from app.models.room import Room
+from app.models.user import User
 
 TEST_DATABASE_URL = settings.TEST_DATABASE_URL
 TEST_USER_PASSWORD = "password12345"

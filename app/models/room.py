@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
 if TYPE_CHECKING:
-    from app.models.booking_model import Booking
+    from app.models.booking import Booking
 
 
 class Room(Base):

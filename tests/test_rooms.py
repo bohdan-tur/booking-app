@@ -5,9 +5,9 @@ from httpx import AsyncClient
 from sqlalchemy import delete
 
 from app.core.security import create_access_token
-from app.models.booking_model import Booking
+from app.models.booking import Booking
 from app.models.booking_status import BookingStatus
-from app.models.room_model import Room
+from app.models.room import Room
 
 
 async def test_add_room_success(authenticated_client: AsyncClient):

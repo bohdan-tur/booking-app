@@ -8,8 +8,8 @@ from app.db.database import Base
 from app.models.booking_status import BookingStatus
 
 if TYPE_CHECKING:
-    from app.models.room_model import Room
-    from app.models.user_model import User
+    from app.models.room import Room
+    from app.models.user import User
 
 
 class Booking(Base):

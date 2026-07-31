@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.booking_model import Booking
+from app.models.booking import Booking
 from app.models.booking_status import BLOCKING_BOOKING_STATUSES, BookingStatus
-from app.models.role_model import Role
-from app.models.room_model import Room
-from app.schemas.booking_schema import BookingCreate, BookingUpdate
+from app.models.role import Role
+from app.models.room import Room
+from app.schemas.booking import BookingCreate, BookingUpdate
 
 
 class NotFoundError(Exception):

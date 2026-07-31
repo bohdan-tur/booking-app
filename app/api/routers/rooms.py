@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, func, select
 
 from app.api.dependencies import DbSession, allow_admin, allow_admin_and_manager
-from app.models.booking_model import Booking
+from app.models.booking import Booking
 from app.models.booking_status import BLOCKING_BOOKING_STATUSES
-from app.models.room_model import Room
-from app.schemas.booking_schema import normalize_to_utc
-from app.schemas.room_schema import RoomCreate, RoomOut, RoomUpdate
+from app.models.room import Room
+from app.schemas.booking import normalize_to_utc
+from app.schemas.room import RoomCreate, RoomOut, RoomUpdate
 
 router = APIRouter(tags=["Rooms"])
 
@@ -83,8 +83,7 @@ async def get_all_not_booked_rooms(
         .outerjoin(booked_rooms_subq, Room.id == booked_rooms_subq.c.room_id)
         .where(
             Room.is_active.is_(True),
-            (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
-            > 0,
+            (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0)) > 0,
         )
     )
 
