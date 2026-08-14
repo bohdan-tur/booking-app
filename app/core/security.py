@@ -2,11 +2,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 
 from .config import settings
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+password_hash = PasswordHash.recommended()
 
 ALGORITHM = settings.ALGORITHM
 SECRET_KEY = settings.SECRET_KEY
@@ -25,11 +25,11 @@ class VerifiedToken:
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hash.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return password_hash.verify(plain_password, hashed_password)
 
 
 def _create_jwt_token(
