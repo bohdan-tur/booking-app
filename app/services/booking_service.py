@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking
@@ -48,7 +48,10 @@ async def ensure_room_available(
     *,
     exclude_booking_id: int | None = None,
 ) -> None:
-    query = select(func.count(Booking.id)).where(
+    if room.total_units <= 0:
+        raise ConflictError("Not enough rooms available for the selected dates")
+
+    query = select(Booking.start_time, Booking.end_time).where(
         Booking.room_id == room.id,
         Booking.status.in_(BLOCKING_BOOKING_STATUSES),
         Booking.start_time < end_time,
@@ -57,9 +60,20 @@ async def ensure_room_available(
     if exclude_booking_id is not None:
         query = query.where(Booking.id != exclude_booking_id)
 
-    booked_count = await db.scalar(query) or 0
-    if booked_count >= room.total_units:
-        raise ConflictError("Not enough rooms available for the selected dates")
+    intervals = (await db.execute(query)).all()
+    events: list[tuple[datetime, int]] = []
+
+    for booking_start, booking_end in intervals:
+        events.append((max(booking_start, start_time), 1))
+        events.append((min(booking_end, end_time), -1))
+
+    events.sort(key=lambda event: (event[0], event[1]))
+
+    current_occupancy = 0
+    for _, change in events:
+        current_occupancy += change
+        if current_occupancy >= room.total_units:
+            raise ConflictError("Not enough rooms available for the selected dates")
 
 
 class BookingService:
