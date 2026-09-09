@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   verification:
     runs-on: ubuntu-latest
@@ -85,7 +89,29 @@ jobs:
           alembic check
 
       - name: Run tests
-        run: pytest -v tests/
+        run: >-
+          pytest -v tests/
+          --cov=app
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml:coverage.xml
+          --cov-fail-under=74
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: warn
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage.xml
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false
 
       - name: Validate Compose configuration
         run: docker compose config --quiet
