@@ -4,8 +4,8 @@
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Tests](https://img.shields.io/badge/tests-139%20passed-brightgreen)](#testing-and-quality)
-[![Coverage](https://img.shields.io/badge/coverage-78%25-green)](#testing-and-quality)
+[![Tests](https://img.shields.io/badge/tests-141%20passed-brightgreen)](#testing-and-quality)
+[![codecov](https://codecov.io/gh/bohdan-tur/booking-app/graph/badge.svg)](https://codecov.io/gh/bohdan-tur/booking-app)
 
 An asynchronous hotel-booking REST API built with FastAPI, PostgreSQL, Redis,
 and Celery. The project addresses the backend problems behind a booking system:
@@ -279,14 +279,16 @@ Run with coverage:
 
 ```bash
 docker compose run --rm tests \
-  pytest --cov=app --cov-report=term-missing
+  pytest --cov=app --cov-branch --cov-report=term-missing --cov-fail-under=74
 ```
 
 Current result:
 
 ```text
-139 passed
-78% total coverage
+141 passed
+80.35% line coverage
+38.33% branch coverage
+74.62% combined coverage
 ```
 
 The suite covers authentication, refresh rotation, negative authorization,
