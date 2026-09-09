@@ -308,7 +308,7 @@ def generate_daily_statistics():
 Daily Report ({get_db_utc_time().strftime("%d.%m.%Y")})
 
 Statistics:
-• New bookings today: {today_bookings or 0}
+• Bookings starting today: {today_bookings or 0}
 • Active bookings: {active_bookings or 0}
 • Completed in the last 7 days: {completed_bookings or 0}
 

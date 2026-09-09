@@ -234,3 +234,4 @@ def test_generate_daily_statistics(mock_send_email, mock_session_local):
 
     assert result["admins_notified"] == 1
     mock_send_email.assert_called_once()
+    assert "Bookings starting today: 3" in mock_send_email.call_args.kwargs["body"]
