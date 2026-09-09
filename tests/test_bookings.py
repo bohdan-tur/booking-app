@@ -510,3 +510,64 @@ async def test_concurrent_booking_requests_respect_room_inventory(
     )
     assert booking_count == 1
     mock_delay.assert_called_once()
+
+
+@patch("app.api.routers.bookings.process_booking_creation.delay")
+async def test_booking_allows_sequential_overlaps_with_shared_inventory(
+    mock_delay,
+    authenticated_client: AsyncClient,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Sequential Occupancy", total_units=2)
+    start = datetime.now(UTC) + timedelta(days=10)
+    midpoint = start + timedelta(hours=2)
+    end = midpoint + timedelta(hours=2)
+    await create_booking(user.id, room.id, start, midpoint)
+    await create_booking(user.id, room.id, midpoint, end)
+
+    response = await authenticated_client.post(
+        "/bookings/",
+        json={
+            "room_id": room.id,
+            "start_time": start.isoformat(),
+            "end_time": end.isoformat(),
+        },
+    )
+
+    assert response.status_code == 201
+    mock_delay.assert_called_once()
+
+
+@patch("app.api.routers.bookings.process_booking_creation.delay")
+async def test_booking_rejects_when_peak_occupancy_reaches_inventory(
+    mock_delay,
+    authenticated_client: AsyncClient,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Peak Occupancy", total_units=2)
+    start = datetime.now(UTC) + timedelta(days=10)
+    await create_booking(user.id, room.id, start, start + timedelta(hours=3))
+    await create_booking(
+        user.id,
+        room.id,
+        start + timedelta(hours=2),
+        start + timedelta(hours=5),
+    )
+
+    response = await authenticated_client.post(
+        "/bookings/",
+        json={
+            "room_id": room.id,
+            "start_time": (start + timedelta(hours=1)).isoformat(),
+            "end_time": (start + timedelta(hours=4)).isoformat(),
+        },
+    )
+
+    assert response.status_code == 409
+    mock_delay.assert_not_called()
