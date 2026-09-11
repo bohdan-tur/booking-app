@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies import DbSession, get_current_user
 from app.core.config import settings
@@ -118,12 +119,18 @@ async def add_user(
         REGISTRATION_IP_LIMIT,
     )
 
-    query_result = await db.execute(select(User).filter(User.email == user_data.email))
-
-    if query_result.scalars().first():
+    existing_user = await db.scalar(
+        select(User).where(
+            or_(
+                User.email == user_data.email,
+                User.username == user_data.username,
+            )
+        )
+    )
+    if existing_user is not None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email or username is already registered",
         )
 
     hashed_pwd = hash_password(user_data.password)
@@ -135,7 +142,14 @@ async def add_user(
     )
 
     db.add(new_user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email or username is already registered",
+        ) from None
     await db.refresh(new_user)
     return new_user
 

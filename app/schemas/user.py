@@ -16,7 +16,11 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    username: str
+    username: str = Field(
+        min_length=3,
+        max_length=50,
+        pattern=r"^[a-zA-Z0-9_]+$",
+    )
     password: str = Field(
         min_length=MIN_PASSWORD_LENGTH,
         max_length=MAX_PASSWORD_LENGTH,

@@ -135,8 +135,39 @@ async def test_register_duplicate_user(client: AsyncClient):
     assert response1.status_code == 201
 
     response2 = await client.post("/auth/register", json=payload)
-    assert response2.status_code == 400
-    assert response2.json()["detail"] == "User with this email already exists"
+    assert response2.status_code == 409
+    assert response2.json()["detail"] == "Email or username is already registered"
+
+
+async def test_register_duplicate_username_returns_conflict(client: AsyncClient):
+    first_payload = {
+        "username": "ExistingUsername",
+        "email": "first_username@example.com",
+        "password": "password12345",
+    }
+    second_payload = {
+        **first_payload,
+        "email": "second_username@example.com",
+    }
+
+    first_response = await client.post("/auth/register", json=first_payload)
+    second_response = await client.post("/auth/register", json=second_payload)
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 409
+
+
+async def test_register_rejects_invalid_username(client: AsyncClient):
+    response = await client.post(
+        "/auth/register",
+        json={
+            "username": "invalid username",
+            "email": "invalid_username@example.com",
+            "password": "password12345",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 async def test_refresh_token_invalid(client: AsyncClient):
@@ -212,6 +243,38 @@ async def test_inactive_user_cannot_use_existing_access_token(
     )
 
     assert response.status_code == 401
+
+
+async def test_old_tokens_remain_invalid_after_user_reactivation(
+    authenticated_client: AsyncClient,
+    db_session,
+):
+    tokens = await register_and_login(
+        authenticated_client,
+        username="ReactivatedTokenUser",
+        email="reactivated_token@example.com",
+    )
+    user_id = await db_session.scalar(
+        select(User.id).where(User.email == "reactivated_token@example.com")
+    )
+
+    deactivate_response = await authenticated_client.patch(
+        f"/users/deactivate/{user_id}"
+    )
+    activate_response = await authenticated_client.patch(f"/users/activate/{user_id}")
+    old_access_response = await authenticated_client.get(
+        "/users/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    old_refresh_response = await authenticated_client.post(
+        "/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert deactivate_response.status_code == 200
+    assert activate_response.status_code == 200
+    assert old_access_response.status_code == 401
+    assert old_refresh_response.status_code == 401
 
 
 async def test_password_change_invalidates_existing_tokens(
