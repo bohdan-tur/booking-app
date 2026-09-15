@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
 from sqlalchemy import insert, select
@@ -112,6 +112,30 @@ async def test_delete_user_by_admin(authenticated_client: AsyncClient, db_sessio
 
     check = await authenticated_client.get(f"/users/{new_user_id}")
     assert check.status_code == 404
+
+
+async def test_delete_user_with_booking_history_returns_conflict(
+    authenticated_client: AsyncClient,
+    db_session,
+    create_test_user,
+    create_room,
+    create_booking,
+):
+    user = await create_test_user(role="user")
+    room = await create_room(name="Preserved History")
+    start_time = datetime.now(UTC) + timedelta(days=5)
+    await create_booking(
+        user.id,
+        room.id,
+        start_time,
+        start_time + timedelta(days=1),
+    )
+
+    response = await authenticated_client.delete(f"/users/{user.id}")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "User with booking history cannot be deleted"
+    assert await db_session.scalar(select(User.id).where(User.id == user.id)) == user.id
 
 
 async def test_get_user_not_found(authenticated_client: AsyncClient):
