@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RoomBase(BaseModel):
@@ -58,3 +58,12 @@ class RoomUpdate(BaseModel):
     location: str | None = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator(
+        "name", "price", "capacity", "total_units", "location", mode="before"
+    )
+    @classmethod
+    def reject_null_for_required_fields(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("Field cannot be null")
+        return value

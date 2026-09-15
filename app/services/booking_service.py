@@ -1,3 +1,5 @@
+from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -48,11 +50,92 @@ async def ensure_room_available(
     *,
     exclude_booking_id: int | None = None,
 ) -> None:
-    if room.total_units <= 0:
+    intervals_by_room = await _load_overlapping_intervals(
+        db,
+        [room.id],
+        start_time,
+        end_time,
+        exclude_booking_id=exclude_booking_id,
+    )
+    if not has_available_unit(
+        intervals_by_room[room.id],
+        room.total_units,
+        start_time,
+        end_time,
+    ):
         raise ConflictError("Not enough rooms available for the selected dates")
 
-    query = select(Booking.start_time, Booking.end_time).where(
-        Booking.room_id == room.id,
+
+def has_available_unit(
+    intervals: Sequence[tuple[datetime, datetime]],
+    total_units: int,
+    start_time: datetime,
+    end_time: datetime,
+) -> bool:
+    if total_units <= 0:
+        return False
+
+    events: list[tuple[datetime, int]] = []
+    for booking_start, booking_end in intervals:
+        overlap_start = max(booking_start, start_time)
+        overlap_end = min(booking_end, end_time)
+        if overlap_start < overlap_end:
+            events.append((overlap_start, 1))
+            events.append((overlap_end, -1))
+
+    events.sort(key=lambda event: (event[0], event[1]))
+
+    current_occupancy = 0
+    for _, change in events:
+        current_occupancy += change
+        if current_occupancy >= total_units:
+            return False
+    return True
+
+
+async def find_available_rooms(
+    db: AsyncSession,
+    start_time: datetime,
+    end_time: datetime,
+    *,
+    room_id: int | None = None,
+) -> list[Room]:
+    rooms_query = select(Room).where(Room.is_active.is_(True))
+    if room_id is not None:
+        rooms_query = rooms_query.where(Room.id == room_id)
+
+    rooms = list((await db.scalars(rooms_query.order_by(Room.id))).all())
+    if not rooms:
+        return []
+
+    intervals_by_room = await _load_overlapping_intervals(
+        db,
+        [room.id for room in rooms],
+        start_time,
+        end_time,
+    )
+    return [
+        room
+        for room in rooms
+        if has_available_unit(
+            intervals_by_room[room.id],
+            room.total_units,
+            start_time,
+            end_time,
+        )
+    ]
+
+
+async def _load_overlapping_intervals(
+    db: AsyncSession,
+    room_ids: Sequence[int],
+    start_time: datetime,
+    end_time: datetime,
+    *,
+    exclude_booking_id: int | None = None,
+) -> dict[int, list[tuple[datetime, datetime]]]:
+    query = select(Booking.room_id, Booking.start_time, Booking.end_time).where(
+        Booking.room_id.in_(room_ids),
         Booking.status.in_(BLOCKING_BOOKING_STATUSES),
         Booking.start_time < end_time,
         Booking.end_time > start_time,
@@ -60,20 +143,10 @@ async def ensure_room_available(
     if exclude_booking_id is not None:
         query = query.where(Booking.id != exclude_booking_id)
 
-    intervals = (await db.execute(query)).all()
-    events: list[tuple[datetime, int]] = []
-
-    for booking_start, booking_end in intervals:
-        events.append((max(booking_start, start_time), 1))
-        events.append((min(booking_end, end_time), -1))
-
-    events.sort(key=lambda event: (event[0], event[1]))
-
-    current_occupancy = 0
-    for _, change in events:
-        current_occupancy += change
-        if current_occupancy >= room.total_units:
-            raise ConflictError("Not enough rooms available for the selected dates")
+    intervals_by_room: dict[int, list[tuple[datetime, datetime]]] = defaultdict(list)
+    for booked_room_id, booking_start, booking_end in (await db.execute(query)).all():
+        intervals_by_room[booked_room_id].append((booking_start, booking_end))
+    return intervals_by_room
 
 
 class BookingService:

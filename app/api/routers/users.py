@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies import (
     DbSession,
@@ -128,8 +129,15 @@ async def delete_user(db: DbSession, user_id: int) -> None:
             detail="Cannot delete admin",
         )
 
-    await db.execute(delete(User).filter(User.id == user_id).returning(User.id))
-    await db.commit()
+    try:
+        await db.execute(delete(User).where(User.id == user_id))
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with booking history cannot be deleted",
+        ) from None
 
 
 @router.patch(
@@ -152,21 +160,10 @@ async def deactivate_user(db: DbSession, user_id: int) -> dict[str, str]:
             detail="Cannot deactivate admin",
         )
 
-    result = await db.execute(
-        update(User)
-        .filter(User.id == user_id)
-        .values(is_active=False)
-        .returning(User.id)
-    )
+    user.is_active = False
+    user.tokens_valid_after = datetime.now(UTC)
+    await RefreshTokenService(db).revoke_all(user.id)
 
-    updated_user_id = result.scalar_one_or_none()
-
-    if not updated_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    await db.commit()
     return {"status": "success", "message": f"User {user_id} deactivated"}
 
 

@@ -14,7 +14,12 @@ DEBUG = settings.DEBUG
 
 engine = create_async_engine(URL, echo=DEBUG)
 
-AsyncSessionLocal = async_sessionmaker(bind=engine, autoflush=False, autocommit=False)
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

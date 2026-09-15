@@ -7,6 +7,7 @@ from app.core.config import (
     Environment,
     Settings,
 )
+from app.db.database import AsyncSessionLocal
 
 
 def build_settings(**overrides) -> Settings:
@@ -27,6 +28,11 @@ def test_development_uses_safe_defaults():
     assert settings.ENVIRONMENT is Environment.development
     assert settings.DEBUG is False
     assert settings.SEED_DEFAULT_USERS is False
+
+
+async def test_application_session_disables_expiration_on_commit():
+    async with AsyncSessionLocal() as session:
+        assert session.sync_session.expire_on_commit is False
 
 
 def test_production_requires_non_development_secrets():

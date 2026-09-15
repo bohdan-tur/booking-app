@@ -96,6 +96,42 @@ async def test_get_all_available_rooms_success(
     assert data[0]["id"] == room_free.id
 
 
+async def test_sequential_bookings_do_not_hide_available_room(
+    client: AsyncClient,
+    db_session,
+    create_room,
+    create_test_user,
+    create_booking,
+):
+    await db_session.execute(delete(Booking))
+    await db_session.execute(delete(Room))
+    await db_session.commit()
+
+    room = await create_room(name="Sequential Availability", total_units=2)
+    user = await create_test_user(role="user")
+    start_time = datetime.now(UTC) + timedelta(days=5)
+    middle_time = start_time + timedelta(hours=2)
+    end_time = middle_time + timedelta(hours=2)
+
+    await create_booking(user.id, room.id, start_time, middle_time)
+    await create_booking(user.id, room.id, middle_time, end_time)
+
+    params = {
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
+    }
+    all_rooms_response = await client.get("/rooms/available", params=params)
+    one_room_response = await client.get(
+        f"/rooms/{room.id}/available",
+        params=params,
+    )
+
+    assert all_rooms_response.status_code == 200
+    assert room.id in [item["id"] for item in all_rooms_response.json()]
+    assert one_room_response.status_code == 200
+    assert one_room_response.json()["id"] == room.id
+
+
 async def test_get_specific_available_room_success(
     client: AsyncClient, db_session, create_room
 ):
@@ -178,6 +214,20 @@ async def test_update_room_success(
     assert response.json()["name"] == "Updated Room"
     assert response.json()["price"] == "1500.00"
     assert response.json()["total_units"] == 3
+
+
+async def test_update_room_rejects_null_price(
+    authenticated_client: AsyncClient,
+    create_room,
+):
+    room = await create_room(name="Required Price")
+
+    response = await authenticated_client.patch(
+        f"/rooms/{room.id}",
+        json={"price": None},
+    )
+
+    assert response.status_code == 422
 
 
 async def test_delete_room_success(
