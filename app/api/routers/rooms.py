@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 
 from app.api.dependencies import (
     DbSession,
@@ -15,6 +15,7 @@ from app.models.booking_status import BLOCKING_BOOKING_STATUSES
 from app.models.room import Room
 from app.schemas.booking import normalize_to_utc
 from app.schemas.room import RoomCreate, RoomOut, RoomUpdate
+from app.services.booking_service import find_available_rooms
 
 router = APIRouter(tags=["Rooms"])
 
@@ -68,36 +69,8 @@ async def get_all_not_booked_rooms(
 ) -> list[RoomOut]:
     check_start, check_end = resolve_period(start_time, end_time)
 
-    booked_rooms_subq = (
-        select(
-            Booking.room_id,
-            func.count(Booking.id).label("booked_count"),
-        )
-        .where(
-            and_(
-                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
-                Booking.start_time < check_end,
-                Booking.end_time > check_start,
-            )
-        )
-        .group_by(Booking.room_id)
-        .subquery()
-    )
-
-    query = (
-        select(Room)
-        .outerjoin(booked_rooms_subq, Room.id == booked_rooms_subq.c.room_id)
-        .where(
-            Room.is_active.is_(True),
-            (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0)) > 0,
-        )
-        .order_by(Room.id)
-        .offset(pagination.offset)
-        .limit(pagination.limit)
-    )
-
-    rooms = await db.execute(query)
-    return rooms.scalars().all()
+    rooms = await find_available_rooms(db, check_start, check_end)
+    return rooms[pagination.offset : pagination.offset + pagination.limit]
 
 
 @router.get(
@@ -111,45 +84,19 @@ async def get_not_booked_room(
 ) -> RoomOut:
     check_start, check_end = resolve_period(start_time, end_time)
 
-    booked_rooms_subq = (
-        select(
-            Booking.room_id,
-            func.count(Booking.id).label("booked_count"),
-        )
-        .where(
-            and_(
-                Booking.room_id == room_id,
-                Booking.status.in_(BLOCKING_BOOKING_STATUSES),
-                Booking.start_time < check_end,
-                Booking.end_time > check_start,
-            )
-        )
-        .group_by(Booking.room_id)
-        .subquery()
+    rooms = await find_available_rooms(
+        db,
+        check_start,
+        check_end,
+        room_id=room_id,
     )
-
-    query = (
-        select(Room)
-        .outerjoin(booked_rooms_subq, Room.id == booked_rooms_subq.c.room_id)
-        .where(
-            and_(
-                Room.id == room_id,
-                Room.is_active.is_(True),
-                (Room.total_units - func.coalesce(booked_rooms_subq.c.booked_count, 0))
-                > 0,
-            )
-        )
-    )
-
-    res = (await db.execute(query)).scalar()
-
-    if not res:
+    if not rooms:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="There isn't such room or it is booked",
         )
 
-    return res
+    return rooms[0]
 
 
 @router.get(
